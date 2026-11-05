@@ -1,5 +1,6 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
+import { AGENT_REGISTRY_BY_ID, FALLBACK_AGENT_METADATA } from './agent-registry.js'
 
 const execFile = promisify(execFileCallback)
 const CACHE_MS = 10_000
@@ -14,24 +15,14 @@ export type GatewayState = 'Running' | 'Stopped' | 'Unknown'
 /** A Hermes profile; every profile is one agent. `gateway` comes from the profile list. */
 export interface Profile { name: string; model: string; gateway: GatewayState; role?: string; shortDescription?: string }
 
-export const profileMetadata: Record<string, { role: string; shortDescription: string }> = {
-  default: { role: 'Hermes Orchestrator & Learning Project Manager', shortDescription: 'Plans learning projects, coordinates agents, manages dependencies, risks, and completion readiness.' },
-  lna: { role: 'Learning Needs Analyst', shortDescription: 'Analyzes evidence, learner needs, competency gaps, and organizational requirements.' },
-  id: { role: 'Instructional Designer', shortDescription: 'Designs curriculum, learning pathways, objectives, activities, and aligned assessment strategy.' },
-  lcd: { role: 'Learning Content Developer', shortDescription: 'Develops verified learning modules, scripts, cases, job aids, and reference materials.' },
-  mled: { role: 'Multimedia & Learning Experience Developer', shortDescription: 'Produces accessible learning media, interactive assets, and multimedia learning experiences.' },
-  aes: { role: 'Assessment & Evaluation Specialist', shortDescription: 'Designs competency-aligned assessments, rubrics, evaluation plans, and effectiveness analysis.' },
-  tlts: { role: 'TITAN Learning Technology & Platform Specialist', shortDescription: 'Prepares TITAN-compatible course packages, records, integrations, QA, and compatibility evidence.' },
-  researcher: { role: 'Research & Evidence Support', shortDescription: 'Finds and verifies research, policy, regulatory, and evidence sources for project decisions.' },
-  semar: { role: 'Learning Synthesis Support', shortDescription: 'Synthesizes inputs into clear learning-program recommendations and supporting documentation.' },
-  bagong: { role: 'Engineering Support', shortDescription: 'Supports technical investigation, development, testing, and safe platform implementation work.' },
-  arjuna: { role: 'Media Production Support', shortDescription: 'Supports production planning and quality review for visual, audio, and multimedia assets.' },
-  kresna: { role: 'Evaluation & Data Review Support', shortDescription: 'Supports evaluation review, data interpretation, and evidence quality checks.' },
-  gareng: { role: 'Independent Quality Reviewer', shortDescription: 'Independently checks alignment, evidence, accessibility, risk, dependencies, and completion readiness.' },
-}
+export const profileMetadata: Record<string, { role: string; shortDescription: string }> = Object.fromEntries(
+  Object.entries(AGENT_REGISTRY_BY_ID).map(([id, agent]) => [id, { role: agent.role, shortDescription: agent.shortDescription }]),
+)
 
-const DEFAULT_PROFILE_METADATA = { role: 'Hermes profile', shortDescription: 'Hermes Agent profile.' }
-function metadataForProfile(name: string) { return profileMetadata[name.toLowerCase()] ?? DEFAULT_PROFILE_METADATA }
+function metadataForProfile(name: string) {
+  const agent = AGENT_REGISTRY_BY_ID[name.toLowerCase()]
+  return agent ? { role: agent.role, shortDescription: agent.shortDescription } : FALLBACK_AGENT_METADATA
+}
 export interface Source<T> {
   availability: Availability
   data: T
@@ -841,26 +832,9 @@ export async function collectAgentActivity(profiles: readonly string[], run: Run
 /** One office station per agent: every Hermes profile, plus OpenCode when it is installed. */
 interface AgentSpec { id: string; name: string; role: string; shortDescription: string; profile?: string; gateway?: GatewayState; aliases: string[] }
 
-const AGENT_DISPLAY_NAMES: Record<string, string> = {
-  default: 'Sentot',
-  lna: 'Nakula',
-  id: 'Yudhistira',
-  lcd: 'Bima',
-  mled: 'Srikandi',
-  aes: 'Drona',
-  tlts: 'Gatotkaca',
-  researcher: 'Petruk',
-  semar: 'Semar',
-  bagong: 'Bagong',
-  arjuna: 'Arjuna',
-  kresna: 'Kresna',
-  gareng: 'Gareng',
-  coder: 'Bagong',
-  reviewer: 'Gareng',
-}
-
 function agentDisplayName(id: string): string {
-  return AGENT_DISPLAY_NAMES[id.toLowerCase()] ?? id
+  const normalized = id.toLowerCase()
+  return AGENT_REGISTRY_BY_ID[normalized]?.displayName ?? (normalized === 'coder' ? 'Bagong' : normalized === 'reviewer' ? 'Gareng' : id)
 }
 
 export function agentRoster(runtime: RuntimeSnapshot): AgentSpec[] {

@@ -1,11 +1,11 @@
 import { agentLabel } from '../format.ts'
+import { AGENT_REGISTRY_BY_ID, type AgentCategory } from '../../server/agent-registry.ts'
 import type { OfficeSnapshot, RuntimeSnapshot } from '../types.ts'
 import { usePolling } from '../polling.ts'
 import { useState } from 'react'
 
-export type AgentCategory = 'LPM' | 'Specialist' | 'Support' | 'Reviewer'
-const CATEGORY_BY_ID: Record<string, AgentCategory> = { default: 'LPM', lna: 'Specialist', id: 'Specialist', lcd: 'Specialist', mled: 'Specialist', aes: 'Specialist', tlts: 'Specialist', researcher: 'Support', semar: 'Support', bagong: 'Support', arjuna: 'Support', kresna: 'Support', gareng: 'Reviewer' }
-export function agentCategory(id: string): AgentCategory | undefined { return CATEGORY_BY_ID[id.toLowerCase()] }
+export type { AgentCategory } from '../../server/agent-registry.ts'
+export function agentCategory(id: string): AgentCategory | undefined { return AGENT_REGISTRY_BY_ID[id.toLowerCase()]?.category }
 import { EmptyState, LoadingState, PageTitle, RuntimeBadge } from '../ui.tsx'
 import { PixelCharacter } from './Office.tsx'
 

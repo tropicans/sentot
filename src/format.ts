@@ -44,26 +44,9 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-/** Stable display names for crew; profile IDs remain technical identifiers. */
-const AGENT_LABELS: Record<string, string> = {
-  default: 'Sentot',
-  lna: 'Nakula',
-  id: 'Yudhistira',
-  lcd: 'Bima',
-  mled: 'Srikandi',
-  aes: 'Drona',
-  tlts: 'Gatotkaca',
-  researcher: 'Petruk',
-  semar: 'Semar',
-  bagong: 'Bagong',
-  arjuna: 'Arjuna',
-  kresna: 'Kresna',
-  gareng: 'Gareng',
-  coder: 'Bagong',
-  reviewer: 'Gareng',
-}
+import { agentMetadata } from '../server/agent-registry.ts'
 
 export function agentLabel(profile: string | undefined): string {
   if (!profile) return 'Hermes'
-  return AGENT_LABELS[profile.toLowerCase()] ?? profile
+  return agentMetadata(profile)?.displayName ?? profile
 }
