@@ -780,6 +780,11 @@ aside.office-panel { background: color-mix(in srgb, var(--surface) 96%, transpar
 .office-overlay .board > .column { max-height: max(240px, calc(100dvh - 470px)); }
 .board-nav-chips .tone-border-good { border-left-color: var(--c-4fb986); } .board-nav-chips .tone-border-info { border-left-color: var(--c-5b9bd5); } .board-nav-chips .tone-border-bad { border-left-color: var(--c-d9695a); } .board-nav-chips .tone-border-muted { border-left-color: var(--c-5c655d); } .board-nav-chips .tone-border-unknown { border-left-color: var(--c-d59a4f); }
 
+.lpm-grid { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 30px; }
+.lpm-grid .data-list { margin-top: 0; }
+.lpm-grid ul { color: var(--text-muted); line-height: 1.8; padding-left: 20px; }
+@media (max-width: 700px) { .lpm-grid { grid-template-columns: 1fr; } }
+
 /* Profile lock: PIN entry, unlock prompt and the agent picker */
 .settings-card + .settings-card { margin-top: 18px; }
 .pin-field { display: grid; gap: 6px; justify-items: start; position: relative; }
