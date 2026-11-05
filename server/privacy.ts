@@ -1,5 +1,5 @@
 import type { MemorySnapshot } from './memory.js'
-import type { ActivitySnapshot, CalendarSnapshot, DashboardSnapshot, LogsSnapshot, OfficeSnapshot, TaskBoardSnapshot, UsageSnapshot } from './mission-control.js'
+import type { ActivitySnapshot, CalendarSnapshot, DashboardSnapshot, DeliverablesSnapshot, LogsSnapshot, OfficeSnapshot, TaskBoardSnapshot, UsageSnapshot } from './mission-control.js'
 import { isHidden, type Privacy } from './profile-lock.js'
 
 // Withholds the private data of locked agents (see profile-lock.ts) from each snapshot, per
@@ -32,6 +32,15 @@ export function redactOffice(office: OfficeSnapshot, privacy: Privacy): OfficeSn
 export function redactTasks(board: TaskBoardSnapshot, privacy: Privacy): TaskBoardSnapshot {
   if (quiet(privacy)) return board
   return { ...board, tasks: { ...board.tasks, data: board.tasks.data.map((task) => isHidden(privacy, task.assignee) ? { ...task, title: PRIVATE_TASK, private: true } : task) } }
+}
+
+export function redactDeliverables(snapshot: DeliverablesSnapshot, privacy: Privacy): DeliverablesSnapshot {
+  if (quiet(privacy)) return snapshot
+  return {
+    ...snapshot,
+    candidates: snapshot.candidates.map((candidate) => isHidden(privacy, candidate.owner) ? { ...candidate, title: PRIVATE_TASK, private: true } : candidate),
+    source: { ...snapshot.source, data: snapshot.source.data.map((task) => isHidden(privacy, task.assignee) ? { ...task, title: PRIVATE_TASK, private: true } : task) },
+  }
 }
 
 export function redactCalendar(calendar: CalendarSnapshot, privacy: Privacy): CalendarSnapshot {

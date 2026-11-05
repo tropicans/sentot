@@ -7,6 +7,7 @@ describe('hash routing', () => {
   it('round-trips every page and falls back to the Office home', () => {
     for (const page of navigation) expect(pageFromHash(`#/${pageSlug(page)}`)).toBe(page)
     expect(pageFromHash('#/task-board')).toBe('Task Board')
+    expect(pageFromHash('#/deliverables')).toBe('Deliverables')
     expect(pageFromHash('#dashboard')).toBe('LPM Dashboard')
     expect(pageFromHash('#/lpm-dashboard')).toBe('LPM Dashboard')
     expect(pageFromHash('')).toBe('Office')

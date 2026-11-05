@@ -40,6 +40,13 @@ export interface ScheduledJob { /** Belongs to a locked agent (profile lock): th
 export interface Session { title: string; preview: string; lastActive: string; id?: string; workspace?: string; source?: string; actor?: string; active?: boolean }
 export interface Skill { name: string; category: string; source: string; trust: string; status: 'enabled' }
 export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard[]; failedBoards?: string[]; fetchedAt: string }
+export const DELIVERABLE_UNAVAILABLE = 'Unavailable from current read-only sources'
+export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
+export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
+/** Read-only task-board projection. It deliberately does not query task details or files. */
+export function buildDeliverables(board: TaskBoardSnapshot): DeliverablesSnapshot {
+  return { candidates: board.tasks.data.map((task) => ({ title: task.title, ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), owner: task.assignee ?? DELIVERABLE_UNAVAILABLE, taskStatus: task.status, version: DELIVERABLE_UNAVAILABLE, evidence: DELIVERABLE_UNAVAILABLE, approval: DELIVERABLE_UNAVAILABLE, finalReadiness: DELIVERABLE_UNAVAILABLE })), source: board.tasks, fetchedAt: board.fetchedAt }
+}
 /** `failedProfiles` lists profiles whose cron list could not be read while others could. */
 export interface CalendarSnapshot { jobs: Source<ScheduledJob[]>; failedProfiles?: string[]; fetchedAt: string }
 export interface ActivitySnapshot { sessions: Source<Session[]>; fetchedAt: string }
