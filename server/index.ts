@@ -9,8 +9,11 @@ import { installProfileLock, isHidden, type Privacy } from './profile-lock.js'
 import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
 import { getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
+import { ArtifactError, listArtifacts, readArtifact } from './artifacts.js'
 
-const HOST = '127.0.0.1'
+// Explicit override for private container networks, e.g. Cloudflare Tunnel.
+// Default remains loopback to avoid exposing the service on host networks.
+const HOST = process.env.RUANG_HOST ?? '127.0.0.1'
 // MISSION_CONTROL_PORT is the pre-rename name, still honoured.
 const PORT = Number(process.env.RUANG_PORT ?? process.env.MISSION_CONTROL_PORT) || 3001
 // The built UI sits next to the server: ../dist from server/*.ts (development, npm start)
@@ -68,6 +71,19 @@ app.get('/api/tasks/:id', async (request, response) => {
   const assignee = detail.task.data?.assignee
   if (isHidden(privacy, assignee)) { locked(response, assignee!); return }
   response.json(detail)
+})
+async function guardTaskArtifacts(request: Request) {
+  const board = typeof request.query.board === 'string' && request.query.board ? request.query.board : undefined
+  const task = (await getTaskBoard()).tasks.data.find((item) => item.id === request.params.id && item.board === board)
+  if (!task) throw new ArtifactError('Unknown task.', 404)
+  if (isHidden(await privacyOf(request), task.assignee)) throw new ArtifactError('Task is locked.', 403)
+  return String(request.params.id)
+}
+app.get('/api/tasks/:id/artifacts/list', async (request, response, next) => {
+  try { response.json(await listArtifacts(await guardTaskArtifacts(request), request.query.path ?? '')) } catch (error) { if (error instanceof ArtifactError) { response.status(error.status).json({ error: error.message }); return } next(error) }
+})
+app.get('/api/tasks/:id/artifacts/file', async (request, response, next) => {
+  try { response.json(await readArtifact(await guardTaskArtifacts(request), request.query.path)) } catch (error) { if (error instanceof ArtifactError) { response.status(error.status).json({ error: error.message }); return } next(error) }
 })
 
 // Folders: read-only view of each agent's own folder. Only agents the server resolved

@@ -12,7 +12,26 @@ export type Availability = 'available' | 'unavailable'
 export type GatewayState = 'Running' | 'Stopped' | 'Unknown'
 
 /** A Hermes profile; every profile is one agent. `gateway` comes from the profile list. */
-export interface Profile { name: string; model: string; gateway: GatewayState }
+export interface Profile { name: string; model: string; gateway: GatewayState; role?: string; shortDescription?: string }
+
+export const profileMetadata: Record<string, { role: string; shortDescription: string }> = {
+  default: { role: 'Hermes Orchestrator & Learning Project Manager', shortDescription: 'Plans learning projects, coordinates agents, manages dependencies, risks, and completion readiness.' },
+  lna: { role: 'Learning Needs Analyst', shortDescription: 'Analyzes evidence, learner needs, competency gaps, and organizational requirements.' },
+  id: { role: 'Instructional Designer', shortDescription: 'Designs curriculum, learning pathways, objectives, activities, and aligned assessment strategy.' },
+  lcd: { role: 'Learning Content Developer', shortDescription: 'Develops verified learning modules, scripts, cases, job aids, and reference materials.' },
+  mled: { role: 'Multimedia & Learning Experience Developer', shortDescription: 'Produces accessible learning media, interactive assets, and multimedia learning experiences.' },
+  aes: { role: 'Assessment & Evaluation Specialist', shortDescription: 'Designs competency-aligned assessments, rubrics, evaluation plans, and effectiveness analysis.' },
+  tlts: { role: 'TITAN Learning Technology & Platform Specialist', shortDescription: 'Prepares TITAN-compatible course packages, records, integrations, QA, and compatibility evidence.' },
+  researcher: { role: 'Research & Evidence Support', shortDescription: 'Finds and verifies research, policy, regulatory, and evidence sources for project decisions.' },
+  semar: { role: 'Learning Synthesis Support', shortDescription: 'Synthesizes inputs into clear learning-program recommendations and supporting documentation.' },
+  bagong: { role: 'Engineering Support', shortDescription: 'Supports technical investigation, development, testing, and safe platform implementation work.' },
+  arjuna: { role: 'Media Production Support', shortDescription: 'Supports production planning and quality review for visual, audio, and multimedia assets.' },
+  kresna: { role: 'Evaluation & Data Review Support', shortDescription: 'Supports evaluation review, data interpretation, and evidence quality checks.' },
+  gareng: { role: 'Independent Quality Reviewer', shortDescription: 'Independently checks alignment, evidence, accessibility, risk, dependencies, and completion readiness.' },
+}
+
+const DEFAULT_PROFILE_METADATA = { role: 'Hermes profile', shortDescription: 'Hermes Agent profile.' }
+function metadataForProfile(name: string) { return profileMetadata[name.toLowerCase()] ?? DEFAULT_PROFILE_METADATA }
 export interface Source<T> {
   availability: Availability
   data: T
@@ -45,6 +64,7 @@ export interface OfficeStation {
   privacy?: 'locked' | 'unlocked'
   name: string
   role: string
+  shortDescription?: string
   room: OfficeRoom
   roomPosition: string
   state: OfficeState
@@ -160,7 +180,7 @@ function profileRows(output: string): ProfileRow[] {
     if (!match) return []
     // A display name renders as "Display Name (id)"; the id is the stable profile name.
     const displayed = match[1].trim()
-    const name = displayed.match(/\(([\w.-]+)\)$/)?.[1] ?? displayed
+    const name = (displayed.match(/\(([\w.-]+)\)$/)?.[1] ?? displayed).replace(/^[^A-Za-z0-9_-]+/, '')
     const model = match[2] === '—' ? 'Not configured' : match[2]
     const gateway: GatewayState = withGateway ? (withGateway[3].toLowerCase() === 'running' ? 'Running' : 'Stopped') : 'Unknown'
     return [{ name, model, gateway }]
@@ -170,7 +190,7 @@ function profileRows(output: string): ProfileRow[] {
 export function parseProfiles(output: string): Profile[] {
   const profiles = profileRows(output)
   if (profiles.length === 0) throw new Error('Unrecognized profile output.')
-  return profiles
+  return profiles.map((profile) => ({ ...profile, ...metadataForProfile(profile.name) }))
 }
 
 export function parseGatewayStatus(output: string): GatewayState {
@@ -819,12 +839,34 @@ export async function collectAgentActivity(profiles: readonly string[], run: Run
 // Office
 
 /** One office station per agent: every Hermes profile, plus OpenCode when it is installed. */
-interface AgentSpec { id: string; role: string; profile?: string; gateway?: GatewayState; aliases: string[] }
+interface AgentSpec { id: string; name: string; role: string; shortDescription: string; profile?: string; gateway?: GatewayState; aliases: string[] }
+
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  default: 'Sentot',
+  lna: 'Nakula',
+  id: 'Yudhistira',
+  lcd: 'Bima',
+  mled: 'Srikandi',
+  aes: 'Drona',
+  tlts: 'Gatotkaca',
+  researcher: 'Petruk',
+  semar: 'Semar',
+  bagong: 'Bagong',
+  arjuna: 'Arjuna',
+  kresna: 'Kresna',
+  gareng: 'Gareng',
+  coder: 'Bagong',
+  reviewer: 'Gareng',
+}
+
+function agentDisplayName(id: string): string {
+  return AGENT_DISPLAY_NAMES[id.toLowerCase()] ?? id
+}
 
 export function agentRoster(runtime: RuntimeSnapshot): AgentSpec[] {
   const profiles = runtime.profiles.availability === 'available' ? runtime.profiles.data : []
-  const agents: AgentSpec[] = profiles.filter((profile) => PROFILE_NAME.test(profile.name)).map((profile) => ({ id: profile.name, role: 'Hermes profile', profile: profile.name, gateway: profile.gateway, aliases: [profile.name.toLowerCase()] }))
-  if (runtime.openCode.availability === 'available' && !agents.some((agent) => agent.id === 'opencode')) agents.push({ id: 'opencode', role: 'OpenCode', aliases: ['opencode', 'open-code'] })
+  const agents: AgentSpec[] = profiles.filter((profile) => PROFILE_NAME.test(profile.name)).map((profile) => ({ id: profile.name, name: agentDisplayName(profile.name), ...metadataForProfile(profile.name), profile: profile.name, gateway: profile.gateway, aliases: [profile.name.toLowerCase()] }))
+  if (runtime.openCode.availability === 'available' && !agents.some((agent) => agent.id === 'opencode')) agents.push({ id: 'opencode', name: 'OpenCode', role: 'OpenCode', shortDescription: 'Provides an additional coding command-line interface.', aliases: ['opencode', 'open-code'] })
   return agents
 }
 
@@ -935,8 +977,9 @@ export function buildOfficeSnapshot(runtime: RuntimeSnapshot, board: TaskBoardSn
     const liveProvenance = options.agentActivity ? `; live activity (${agent.profile ? `hermes -p ${agent.profile} logs/sessions` : 'agent logs mentioning OpenCode'}, last ${ACTIVITY_WINDOW}): ${!agentActivity || !live.known ? 'unavailable' : live.state !== 'Unknown' ? live.probe?.kind ?? 'active' : 'none'}` : ''
     return {
       id: agent.id,
-      name: agent.id,
+      name: agent.name,
       role: agent.role,
+      shortDescription: agent.shortDescription,
       ...roomForState(state, index),
       seat: index + 1,
       state,

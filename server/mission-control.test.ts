@@ -10,14 +10,21 @@ import {
   parseChannelStatus,
   parseGatewayStatus,
   parseProfiles,
+  profileMetadata,
   parseSessions,
   parseSkills,
 } from './mission-control.js'
 
 describe('Hermes output parsers', () => {
+  it('exposes controlled safe metadata for all Ruang profiles', () => {
+    expect(Object.keys(profileMetadata)).toEqual(['default', 'lna', 'id', 'lcd', 'mled', 'aes', 'tlts', 'researcher', 'semar', 'bagong', 'arjuna', 'kresna', 'gareng'])
+    expect(profileMetadata.default).toEqual({ role: 'Hermes Orchestrator & Learning Project Manager', shortDescription: expect.any(String) })
+    expect(profileMetadata.researcher.role).toBe('Research & Evidence Support')
+  })
   it('extracts profile, model and gateway state from the profile table', () => {
-    expect(parseProfiles(' Profile    Model       Gateway\n ───────\n ◆default  gpt-5.6    running\n  coder  gpt-5.5  stopped\n')).toEqual([
-      { name: 'default', model: 'gpt-5.6', gateway: 'Running' }, { name: 'coder', model: 'gpt-5.5', gateway: 'Stopped' },
+    expect(parseProfiles(' Profile    Model       Gateway\n ───────\n ● default gpt-5.6     Running\n   coder   gpt-5.5     Stopped')).toEqual([
+      { name: 'default', model: 'gpt-5.6', gateway: 'Running', ...profileMetadata.default },
+      { name: 'coder', model: 'gpt-5.5', gateway: 'Stopped', role: 'Hermes profile', shortDescription: 'Hermes Agent profile.' },
     ])
   })
 
@@ -147,13 +154,53 @@ describe('Office snapshot', () => {
     fetchedAt: '2026-09-27T12:00:00.000Z',
   }
 
+  it('uses crew display names while preserving stable profile ids', () => {
+    const namedRuntime = {
+      ...runtime,
+      profiles: {
+        availability: 'available' as const,
+        data: [
+          { name: 'default', model: 'm', gateway: 'Running' as const },
+          { name: 'coder', model: 'm', gateway: 'Stopped' as const },
+          { name: 'researcher', model: 'm', gateway: 'Stopped' as const },
+          { name: 'reviewer', model: 'm', gateway: 'Stopped' as const },
+        ],
+      },
+    }
+    const office = buildOfficeSnapshot(namedRuntime, { tasks: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { sessions: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { now: runtime.fetchedAt })
+
+    expect(office.stations.slice(0, 4).map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'default', name: 'Sentot' },
+      { id: 'coder', name: 'Bagong' },
+      { id: 'researcher', name: 'Petruk' },
+      { id: 'reviewer', name: 'Gareng' },
+    ])
+
+    const specialistRuntime = {
+      ...runtime,
+      profiles: {
+        availability: 'available' as const,
+        data: ['lna', 'id', 'lcd', 'mled', 'aes', 'tlts'].map((name) => ({ name, model: 'm', gateway: 'Stopped' as const })),
+      },
+    }
+    const specialists = buildOfficeSnapshot(specialistRuntime, { tasks: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { sessions: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { now: runtime.fetchedAt })
+    expect(specialists.stations.slice(0, 6).map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'lna', name: 'Nakula' },
+      { id: 'id', name: 'Yudhistira' },
+      { id: 'lcd', name: 'Bima' },
+      { id: 'mled', name: 'Srikandi' },
+      { id: 'aes', name: 'Drona' },
+      { id: 'tlts', name: 'Gatotkaca' },
+    ])
+  })
+
   it('places the no-work crew in Lounge as server-managed Idle', () => {
     const office = buildOfficeSnapshot(runtime, { tasks: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { sessions: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { now: runtime.fetchedAt })
 
     expect(office.stations).toMatchObject([
-      { name: 'default', room: 'Lounge', roomPosition: 'lounge-seat-1', state: 'Idle' },
-      { name: 'coder', room: 'Lounge', roomPosition: 'lounge-seat-2', state: 'Idle' },
-      { name: 'opencode', room: 'Lounge', roomPosition: 'lounge-seat-3', state: 'Idle' },
+      { id: 'default', name: 'Sentot', room: 'Lounge', roomPosition: 'lounge-seat-1', state: 'Idle' },
+      { id: 'coder', name: 'Bagong', room: 'Lounge', roomPosition: 'lounge-seat-2', state: 'Idle' },
+      { id: 'opencode', name: 'OpenCode', room: 'Lounge', roomPosition: 'lounge-seat-3', state: 'Idle' },
     ])
     expect(office.stations[2].provenance).toContain('OpenCode version availability is not a state signal')
     expect(office.stations[0].provenance).toContain('Ruang managed-idle placement policy')
@@ -170,9 +217,9 @@ describe('Office snapshot', () => {
     }, { sessions: { availability: 'available', data: [] }, fetchedAt: '2026-09-27T12:00:00.000Z' }, { now: runtime.fetchedAt })
 
     expect(office.stations).toMatchObject([
-      { id: 'default', name: 'default', role: 'Hermes profile', room: 'Lounge', state: 'Idle', currentTask: 'No attributed task', recentActivity: 'No attributed recent activity' },
-      { name: 'coder', room: 'Workspace', state: 'Reviewing', currentTask: 'Review the office', recentActivity: 'No attributed recent activity' },
-      { name: 'opencode', room: 'Lounge', state: 'Idle', currentTask: 'No attributed task' },
+      { id: 'default', name: 'Sentot', role: profileMetadata.default.role, shortDescription: profileMetadata.default.shortDescription, room: 'Lounge', state: 'Idle', currentTask: 'No attributed task', recentActivity: 'No attributed recent activity' },
+      { id: 'coder', name: 'Bagong', room: 'Workspace', state: 'Reviewing', currentTask: 'Review the office', recentActivity: 'No attributed recent activity' },
+      { id: 'opencode', name: 'OpenCode', room: 'Lounge', state: 'Idle', currentTask: 'No attributed task' },
     ])
   })
 
@@ -187,9 +234,9 @@ describe('Office snapshot', () => {
   it('maps office states to rooms and keeps unknown agents in a labelled neutral workspace position', () => {
     const office = buildOfficeSnapshot(runtime, { tasks: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { sessions: { availability: 'available', data: [] }, fetchedAt: runtime.fetchedAt }, { now: runtime.fetchedAt })
     expect(office.stations).toMatchObject([
-      { name: 'default', room: 'Lounge', roomPosition: 'lounge-seat-1' },
-      { name: 'coder', room: 'Lounge', roomPosition: 'lounge-seat-2' },
-      { name: 'opencode', room: 'Lounge', roomPosition: 'lounge-seat-3' },
+      { id: 'default', name: 'Sentot', room: 'Lounge', roomPosition: 'lounge-seat-1' },
+      { id: 'coder', name: 'Bagong', room: 'Lounge', roomPosition: 'lounge-seat-2' },
+      { id: 'opencode', name: 'OpenCode', room: 'Lounge', roomPosition: 'lounge-seat-3' },
     ])
   })
 
@@ -207,9 +254,9 @@ describe('Office snapshot', () => {
       fetchedAt: '2026-09-27T12:00:00.000Z',
     }, { sessions: { availability: 'unavailable', data: [], error: { code: 'COMMAND_FAILED', message: 'Read command was unavailable.' } }, fetchedAt: '2026-09-27T12:00:00.000Z' }, { now: runtime.fetchedAt })
 
-    expect(office.stations[0]).toMatchObject({ name: 'default', state: 'Working', currentTask: 'Active lead work', recentActivity: 'Not Available' })
+    expect(office.stations[0]).toMatchObject({ id: 'default', name: 'Sentot', state: 'Working', currentTask: 'Active lead work', recentActivity: 'Not Available' })
     expect(office.stations.some((station) => station.state === 'Offline')).toBe(false)
-    expect(office.stations[2]).toMatchObject({ name: 'opencode', state: 'Unknown' })
+    expect(office.stations[2]).toMatchObject({ id: 'opencode', name: 'OpenCode', state: 'Unknown' })
   })
 
   it('does not turn unassigned work, generic sessions, gateway Running, or a version into active state', () => {

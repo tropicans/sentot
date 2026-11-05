@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { formatDateTime, orderedStatuses, statusTone } from '../format.ts'
 import { usePolling } from '../polling.ts'
 import { loadSnapshot, type RequestState } from '../request-state.ts'
-import type { Task, TaskBoardSnapshot, TaskDetailSnapshot } from '../types.ts'
+import type { ArtifactFile, ArtifactListing, Task, TaskBoardSnapshot, TaskDetailSnapshot } from '../types.ts'
 import { Dialog, EmptyState, PageTitle, SearchInput, SourceStatus, Unavailable } from '../ui.tsx'
 import { ProfileUnlock, RelockBar } from '../ProfileLock.tsx'
 import { agentPrivacy, useProfileLock } from '../profile-lock.ts'
@@ -11,6 +11,16 @@ const UNASSIGNED = '(unassigned)'
 
 function Field({ label, value }: { label: string; value?: string | number }) {
   return value === undefined || value === '' ? null : <div><dt>{label}</dt><dd>{value}</dd></div>
+}
+function Artifacts({ task }: { task: Task }) {
+  const [directory, setDirectory] = useState('')
+  const [listing, setListing] = useState<ArtifactListing>()
+  const [file, setFile] = useState<ArtifactFile>()
+  const query = `${task.board ? `board=${encodeURIComponent(task.board)}&` : ''}path=${encodeURIComponent(directory)}`
+  useEffect(() => { if (task.id) void loadSnapshot<ArtifactListing>(`/api/tasks/${encodeURIComponent(task.id)}/artifacts/list?${query}`).then((state) => { if (state.status === 'ready') setListing(state.data) }) }, [task.id, query])
+  if (!task.id) return null
+  const open = (path: string) => void loadSnapshot<ArtifactFile>(`/api/tasks/${encodeURIComponent(task.id!)}/artifacts/file?${task.board ? `board=${encodeURIComponent(task.board)}&` : ''}path=${encodeURIComponent(path)}`).then((state) => { if (state.status === 'ready') setFile(state.data) })
+  return <section className="task-section artifacts"><p className="eyebrow">ARTIFACTS</p><nav>{directory && <button type="button" onClick={() => setDirectory(directory.split('/').slice(0, -1).join('/'))}>..</button>}{listing?.entries.map((entry) => <button type="button" key={entry.path} onClick={() => entry.type === 'dir' ? setDirectory(entry.path) : open(entry.path)}>{entry.type === 'dir' ? '▸ ' : ''}{entry.name}</button>)}</nav>{listing?.truncated && <p className="muted">Listing truncated.</p>}{file && <><p className="muted">{file.path} · {file.kind}{file.redactions ? ` · ${file.redactions} redacted` : ''}</p>{file.content !== undefined ? <pre className="task-text artifact-preview">{file.content}</pre> : <p className="file-notice">Preview blocked: {file.kind}.</p>}</>}</section>
 }
 
 export function TaskDetailDialog({ task, onClose, onOpenTask }: { task: Task; onClose: () => void; onOpenTask?: (id: string) => void }) {
@@ -53,6 +63,7 @@ export function TaskDetailDialog({ task, onClose, onOpenTask }: { task: Task; on
       </dl>
       {detail.lastError && <section className="task-section"><p className="eyebrow">LAST FAILURE</p><pre className="task-text text-bad">{detail.lastError}</pre></section>}
       <section className="task-section"><p className="eyebrow">DESCRIPTION</p>{detail.body ? <pre className="task-text">{detail.body}</pre> : <p className="muted">No description.</p>}</section>
+      <Artifacts task={task}/>
       {detail.result && <section className="task-section"><p className="eyebrow">RESULT / LATEST SUMMARY</p><pre className="task-text">{detail.result}</pre></section>}
       {detail.runs.length > 0 && <section className="task-section"><p className="eyebrow">RUNS ({detail.runs.length})</p><table className="log-table"><thead><tr><th>Run</th><th>Profile</th><th>Status</th><th>Started</th><th>Ended</th></tr></thead><tbody>{detail.runs.map((run) => <tr key={run.id}><td>#{run.id}</td><td>{run.profile ?? '—'}</td><td><span className={`badge ${statusTone(run.outcome ?? run.status ?? '')}`}>{run.outcome ?? run.status ?? '—'}</span>{run.error && <div className="text-bad small-note">{run.error}</div>}{run.summary && <div className="small-note">{run.summary}</div>}</td><td>{formatDateTime(run.startedAt)}</td><td>{formatDateTime(run.endedAt)}</td></tr>)}</tbody></table></section>}
       {detail.comments.length > 0 && <section className="task-section"><p className="eyebrow">COMMENTS ({detail.comments.length})</p><ul className="task-timeline">{detail.comments.map((comment, index) => <li key={index}><b>{comment.author}</b><small>{formatDateTime(comment.createdAt)}</small><p>{comment.body}</p></li>)}</ul></section>}

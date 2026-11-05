@@ -3,7 +3,7 @@ export type GatewayState = 'Running' | 'Stopped' | 'Unknown'
 export interface Source<T> { availability: Availability; data: T; error?: { code: string; message: string } }
 export interface RuntimeSnapshot {
   /** Every Hermes profile is an agent; `gateway` comes from `hermes profile list`. */
-  profiles: Source<{ name: string; model: string; gateway: GatewayState }[]>
+  profiles: Source<{ name: string; model: string; gateway: GatewayState; role: string; shortDescription: string }[]>
   openCode: Source<string>
   fetchedAt: string
 }
@@ -29,6 +29,7 @@ export interface OfficeStation {
   privacy?: 'locked' | 'unlocked'
   name: string
   role: string
+  shortDescription?: string
   room: OfficeRoom
   roomPosition: string
   state: OfficeState
@@ -115,6 +116,9 @@ export interface TaskDetail {
   runs: { id: string; profile?: string; status?: string; outcome?: string; summary?: string; error?: string; startedAt?: string; endedAt?: string }[]
 }
 export interface TaskDetailSnapshot { task: Source<TaskDetail | null>; fetchedAt: string }
+export interface ArtifactEntry { name: string; path: string; type: 'dir' | 'file'; size: number; sensitive: boolean }
+export interface ArtifactListing { taskId: string; path: string; entries: ArtifactEntry[]; truncated: boolean }
+export interface ArtifactFile { taskId: string; path: string; size: number; kind: 'text' | 'binary' | 'sensitive' | 'too-large'; content?: string; truncated?: boolean; redactions?: number }
 export interface MemoryDocument { name: string; path: string; exists: boolean; size?: number; modified?: string; chars?: number; content?: string; truncated?: boolean; redactions?: number; error?: string }
 export interface MemoryStore extends MemoryDocument { entries: string[]; limit: number; used: number; percent: number }
 export interface MemorySettings { memoryEnabled: boolean; userProfileEnabled: boolean; writeApproval: boolean; provider?: string; memoryLimit: number; userLimit: number; source: 'config.yaml' | 'defaults' }

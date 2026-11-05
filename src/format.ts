@@ -44,7 +44,26 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-/** Display name for an agent: its Hermes profile name as-is. */
+/** Stable display names for crew; profile IDs remain technical identifiers. */
+const AGENT_LABELS: Record<string, string> = {
+  default: 'Sentot',
+  lna: 'Nakula',
+  id: 'Yudhistira',
+  lcd: 'Bima',
+  mled: 'Srikandi',
+  aes: 'Drona',
+  tlts: 'Gatotkaca',
+  researcher: 'Petruk',
+  semar: 'Semar',
+  bagong: 'Bagong',
+  arjuna: 'Arjuna',
+  kresna: 'Kresna',
+  gareng: 'Gareng',
+  coder: 'Bagong',
+  reviewer: 'Gareng',
+}
+
 export function agentLabel(profile: string | undefined): string {
-  return profile ?? 'Hermes'
+  if (!profile) return 'Hermes'
+  return AGENT_LABELS[profile.toLowerCase()] ?? profile
 }
