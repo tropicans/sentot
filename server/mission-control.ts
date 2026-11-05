@@ -685,6 +685,10 @@ export interface TaskDetail {
   runs: { id: string; profile?: string; status?: string; outcome?: string; summary?: string; error?: string; startedAt?: string; endedAt?: string }[]
 }
 export interface TaskDetailSnapshot { task: Source<TaskDetail | null>; fetchedAt: string }
+export interface DependencyNode { key: string; id: string; board?: string; title: string; status: string; assignee?: string; private?: boolean; waiting: boolean; bottleneck: number; root: boolean; available: boolean }
+export interface DependencyEdge { from: string; to: string }
+export interface DependencyGraph { nodes: DependencyNode[]; edges: DependencyEdge[]; partial: boolean; failed: string[] }
+export interface DependencySnapshot { graph: Source<DependencyGraph>; fetchedAt: string }
 
 export const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 
@@ -753,6 +757,28 @@ export async function collectTaskDetail(id: string, run: Run = systemRun, board?
   if (board !== undefined && !BOARD_SLUG.test(board)) throw new Error('Invalid board.')
   const task = await read<TaskDetail | null>(run, 'hermes', ['kanban', ...(board ? ['--board', board] : []), 'show', id, '--json'], parseTaskDetail, null)
   return { task, fetchedAt: new Date().toISOString() }
+}
+
+export async function collectDependencies(board: TaskBoardSnapshot, run: Run = systemRun, concurrency = KANBAN_CONCURRENCY): Promise<DependencySnapshot> {
+  const fetchedAt = new Date().toISOString()
+  if (board.tasks.availability !== 'available') return { graph: { availability: 'unavailable', data: { nodes: [], edges: [], partial: true, failed: [] }, error: board.tasks.error }, fetchedAt }
+  const listed = board.tasks.data.filter((task): task is Task & { id: string } => Boolean(task.id && TASK_ID.test(task.id)))
+  const key = (id: string, boardName?: string) => `${boardName ?? ''}:${id}`
+  const allowed = new Map(listed.map((task) => [key(task.id, task.board), task]))
+  const details = await mapLimit(listed, Math.max(1, Math.min(concurrency, KANBAN_CONCURRENCY)), async (task) => ({ task, detail: await collectTaskDetail(task.id, run, task.board) }))
+  const failed = details.filter(({ detail }) => detail.task.availability !== 'available' || !detail.task.data).map(({ task }) => key(task.id, task.board))
+  const edges = new Map<string, DependencyEdge>()
+  for (const { task, detail } of details) {
+    if (!detail.task.data) continue
+    for (const parent of detail.task.data.parents) { const from = key(parent, task.board); const to = key(task.id, task.board); if (allowed.has(from)) edges.set(`${from}>${to}`, { from, to }) }
+    for (const child of detail.task.data.children) { const from = key(task.id, task.board); const to = key(child, task.board); if (allowed.has(to)) edges.set(`${from}>${to}`, { from, to }) }
+  }
+  const allEdges = [...edges.values()]
+  const incoming = new Map<string, DependencyEdge[]>(), outgoing = new Map<string, DependencyEdge[]>()
+  for (const edge of allEdges) { incoming.set(edge.to, [...(incoming.get(edge.to) ?? []), edge]); outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge]) }
+  const complete = (status: string) => ['done', 'completed', 'complete', 'closed', 'cancelled', 'canceled'].includes(status.toLowerCase())
+  const nodes = listed.map((task) => { const k = key(task.id, task.board); const parents = incoming.get(k) ?? []; return { key: k, id: task.id, board: task.board, title: task.title, status: task.status, assignee: task.assignee, waiting: parents.some((edge) => !complete(allowed.get(edge.from)?.status ?? '')), bottleneck: (outgoing.get(k) ?? []).length, root: parents.length === 0, available: !failed.includes(k) } })
+  return { graph: { availability: 'available', data: { nodes, edges: allEdges, partial: failed.length > 0 || Boolean(board.failedBoards?.length), failed } }, fetchedAt }
 }
 
 // ---------------------------------------------------------------------------
@@ -1012,6 +1038,7 @@ function cachedSource<T>(collect: () => Promise<T>, ttl = CACHE_MS) {
 
 const runtimeSource = cachedSource(() => collectSnapshot())
 const taskBoardSource = cachedSource(() => collectTaskBoard())
+const dependencySource = cachedSource(async () => collectDependencies(await getTaskBoard()))
 const calendarSource = cachedSource(() => collectCalendar())
 const activitySource = cachedSource(() => collectActivity())
 const knowledgeSource = cachedSource(() => collectKnowledge())
@@ -1031,6 +1058,7 @@ const agentActivitySource = cachedSource(async () => {
 export function getSnapshot(now = Date.now()): Promise<RuntimeSnapshot> { return runtimeSource(now) }
 export function clearSnapshotCache(): void { runtimeSource.clear() }
 export function getTaskBoard(now = Date.now()): Promise<TaskBoardSnapshot> { return taskBoardSource(now) }
+export function getDependencies(now = Date.now()): Promise<DependencySnapshot> { return dependencySource(now) }
 export function getCalendar(now = Date.now()): Promise<CalendarSnapshot> { return calendarSource(now) }
 export function getActivity(now = Date.now()): Promise<ActivitySnapshot> { return activitySource(now) }
 export function getKnowledge(now = Date.now()): Promise<KnowledgeSnapshot> { return knowledgeSource(now) }

@@ -116,6 +116,9 @@ export interface TaskDetail {
   runs: { id: string; profile?: string; status?: string; outcome?: string; summary?: string; error?: string; startedAt?: string; endedAt?: string }[]
 }
 export interface TaskDetailSnapshot { task: Source<TaskDetail | null>; fetchedAt: string }
+export interface DependencyNode { key: string; id: string; board?: string; title: string; status: string; assignee?: string; private?: boolean; waiting: boolean; bottleneck: number; root: boolean; available: boolean }
+export interface DependencyEdge { from: string; to: string }
+export interface DependencySnapshot { graph: Source<{ nodes: DependencyNode[]; edges: DependencyEdge[]; partial: boolean; failed: string[] }>; fetchedAt: string }
 export interface ArtifactEntry { name: string; path: string; type: 'dir' | 'file'; size: number; sensitive: boolean }
 export interface ArtifactListing { taskId: string; path: string; entries: ArtifactEntry[]; truncated: boolean }
 export interface ArtifactFile { taskId: string; path: string; size: number; kind: 'text' | 'binary' | 'sensitive' | 'too-large'; content?: string; truncated?: boolean; redactions?: number }

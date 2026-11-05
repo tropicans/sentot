@@ -4,11 +4,11 @@ import { fileURLToPath } from 'node:url'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { excludedFor, FolderError, listFolder, publicAgent, readFolderFile, resolveAgentFolders } from './folders.js'
 import { installAccess } from './access.js'
-import { redactActivity, redactCalendar, redactDashboard, redactLogs, redactMemory, redactOffice, redactTasks, redactUsage } from './privacy.js'
+import { redactActivity, redactCalendar, redactDashboard, redactDependencies, redactLogs, redactMemory, redactOffice, redactTasks, redactUsage } from './privacy.js'
 import { installProfileLock, isHidden, type Privacy } from './profile-lock.js'
 import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
-import { getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
+import { getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
 import { ArtifactError, listArtifacts, readArtifact } from './artifacts.js'
 
 // Explicit override for private container networks, e.g. Cloudflare Tunnel.
@@ -42,6 +42,7 @@ const routes: Record<string, (now: number, privacy: Privacy) => Promise<unknown>
   '/api/runtime': getSnapshot,
   '/api/dashboard': async (now, privacy) => redactDashboard(await getDashboard(now), privacy),
   '/api/tasks': async (now, privacy) => redactTasks(await getTaskBoard(now), privacy),
+  '/api/dependencies': async (now, privacy) => redactDependencies(await getDependencies(now), privacy),
   '/api/calendar': async (now, privacy) => redactCalendar(await getCalendar(now), privacy),
   '/api/activity': async (now, privacy) => redactActivity(await getActivity(now), privacy),
   '/api/knowledge': getKnowledge,

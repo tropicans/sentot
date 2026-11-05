@@ -9,6 +9,10 @@ import { isHidden, type Privacy } from './profile-lock.js'
 export const PRIVATE_TASK = '🔒 Private task'
 export const PRIVATE_JOB = '🔒 Private job'
 export const PRIVATE_SESSION = '🔒 Private session'
+export function redactDependencies(snapshot: import('./mission-control.js').DependencySnapshot, privacy: Privacy): import('./mission-control.js').DependencySnapshot {
+  if (quiet(privacy)) return snapshot
+  return { ...snapshot, graph: { ...snapshot.graph, data: { ...snapshot.graph.data, nodes: snapshot.graph.data.nodes.map((node) => isHidden(privacy, node.assignee) ? { ...node, title: PRIVATE_TASK, private: true } : node) } } }
+}
 const DEFAULT_AGENT = 'default'
 
 const quiet = (privacy: Privacy) => !privacy.all && privacy.hidden.size === 0
