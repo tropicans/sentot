@@ -16,6 +16,9 @@ export interface Skill { name: string; category: string; source: string; trust: 
 export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard[]; failedBoards?: string[]; fetchedAt: string }
 export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
 export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
+export interface RiskEntry { kind: 'Risk' | 'Assumption'; title: string; taskId?: string; board?: string; impact: string; dependencies: string[]; mitigationOwner: string; mitigationStatus: string; reviewDate: string; evidence: string; approval: string; private?: boolean }
+export type RiskDependencySource = { availability: 'available' } | { availability: 'unavailable'; error?: { code: string; message: string } } | { availability: 'partial'; failed: string[] }
+export interface RiskRegisterSnapshot { entries: RiskEntry[]; source: Source<Task[]>; dependencySource: RiskDependencySource; fetchedAt: string }
 /** `failedProfiles` lists profiles whose cron list could not be read while others could. */
 export interface CalendarSnapshot { jobs: Source<ScheduledJob[]>; failedProfiles?: string[]; fetchedAt: string }
 export interface ActivitySnapshot { sessions: Source<Session[]>; fetchedAt: string }

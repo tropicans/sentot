@@ -43,6 +43,23 @@ export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard
 export const DELIVERABLE_UNAVAILABLE = 'Unavailable from current read-only sources'
 export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
 export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
+export const RISK_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
+export interface RiskEntry { kind: 'Risk' | 'Assumption'; title: string; taskId?: string; board?: string; impact: string; dependencies: string[]; mitigationOwner: string; mitigationStatus: string; reviewDate: string; evidence: string; approval: string; private?: boolean }
+export type RiskDependencySource = { availability: 'available' } | { availability: 'unavailable'; error?: Source<unknown>['error'] } | { availability: 'partial'; failed: string[] }
+export interface RiskRegisterSnapshot { entries: RiskEntry[]; source: Source<Task[]>; dependencySource: RiskDependencySource; fetchedAt: string }
+export function buildRiskRegister(board: TaskBoardSnapshot, dependencies: DependencySnapshot): RiskRegisterSnapshot {
+  const dependencySource = dependencies.graph.availability !== 'available' ? { availability: 'unavailable' as const, ...(dependencies.graph.error ? { error: dependencies.graph.error } : {}) } : dependencies.graph.data.partial ? { availability: 'partial' as const, failed: dependencies.graph.data.failed } : { availability: 'available' as const }
+  if (board.tasks.availability !== 'available') return { entries: [], source: board.tasks, dependencySource, fetchedAt: board.fetchedAt }
+  const tasks = board.tasks.data
+  const byKey = new Map(tasks.map((task) => [`${task.board ?? ''}:${task.id ?? ''}`, task]))
+  const entries = tasks.filter((task) => /^(risk|assumption)\s*:/i.test(task.title)).map((task) => {
+    const match = task.title.match(/^(risk|assumption)\s*:\s*(.*)$/i)!
+    const key = `${task.board ?? ''}:${task.id ?? ''}`
+    const blocked = dependencies.graph.availability === 'available' ? dependencies.graph.data.edges.filter((edge) => edge.from === key).map((edge) => byKey.get(edge.to)?.title).filter((title): title is string => Boolean(title)) : []
+    return { kind: match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() as 'Risk' | 'Assumption', title: match[2], ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), impact: RISK_UNAVAILABLE, dependencies: blocked, mitigationOwner: task.assignee ?? RISK_UNAVAILABLE, mitigationStatus: task.status, reviewDate: RISK_UNAVAILABLE, evidence: RISK_UNAVAILABLE, approval: RISK_UNAVAILABLE }
+  })
+  return { entries, source: board.tasks, dependencySource, fetchedAt: board.fetchedAt }
+}
 /** Read-only task-board projection. It deliberately does not query task details or files. */
 export function buildDeliverables(board: TaskBoardSnapshot): DeliverablesSnapshot {
   return { candidates: board.tasks.data.map((task) => ({ title: task.title, ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), owner: task.assignee ?? DELIVERABLE_UNAVAILABLE, taskStatus: task.status, version: DELIVERABLE_UNAVAILABLE, evidence: DELIVERABLE_UNAVAILABLE, approval: DELIVERABLE_UNAVAILABLE, finalReadiness: DELIVERABLE_UNAVAILABLE })), source: board.tasks, fetchedAt: board.fetchedAt }
