@@ -20,8 +20,13 @@ describe('controlled agent registry', () => {
     }
   })
 
-  it('looks up IDs case-insensitively and has safe fallback metadata', () => {
+  it('resolves historical aliases to canonical agent metadata', () => {
+    expect(agentMetadata('coder')?.id).toBe('bagong')
+    expect(agentMetadata('reviewer')?.id).toBe('gareng')
     expect(agentMetadata('LNA')?.displayName).toBe('Nakula')
+  })
+
+  it('has safe fallback metadata for unknown IDs', () => {
     expect(agentMetadata('unknown')).toBeUndefined()
     expect(FALLBACK_AGENT_METADATA).toEqual({ role: 'Hermes profile', shortDescription: 'Hermes Agent profile.' })
   })

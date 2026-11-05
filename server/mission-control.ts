@@ -866,8 +866,7 @@ export async function collectAgentActivity(profiles: readonly string[], run: Run
 interface AgentSpec { id: string; name: string; role: string; shortDescription: string; profile?: string; gateway?: GatewayState; aliases: string[] }
 
 function agentDisplayName(id: string): string {
-  const normalized = id.toLowerCase()
-  return AGENT_REGISTRY_BY_ID[normalized]?.displayName ?? (normalized === 'coder' ? 'Bagong' : normalized === 'reviewer' ? 'Gareng' : id)
+  return AGENT_REGISTRY_BY_ID[id.toLowerCase()]?.displayName ?? (id.toLowerCase() === 'coder' ? 'Bagong' : id.toLowerCase() === 'reviewer' ? 'Gareng' : id)
 }
 
 export function agentRoster(runtime: RuntimeSnapshot): AgentSpec[] {

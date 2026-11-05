@@ -26,8 +26,19 @@ export const AGENT_REGISTRY: readonly AgentMetadata[] = [
 
 export const AGENT_REGISTRY_BY_ID: Readonly<Record<string, AgentMetadata>> = Object.fromEntries(AGENT_REGISTRY.map((agent) => [agent.id, agent]))
 
+/** Historical routing IDs retained for read-only display; canonical profile IDs stay unchanged. */
+export const HISTORICAL_AGENT_ALIASES: Readonly<Record<string, string>> = {
+  coder: 'bagong',
+  reviewer: 'gareng',
+}
+
+export function canonicalAgentId(id: string): string {
+  const normalized = id.toLowerCase()
+  return HISTORICAL_AGENT_ALIASES[normalized] ?? normalized
+}
+
 export function agentMetadata(id: string): AgentMetadata | undefined {
-  return AGENT_REGISTRY_BY_ID[id.toLowerCase()]
+  return AGENT_REGISTRY_BY_ID[canonicalAgentId(id)]
 }
 
 export const FALLBACK_AGENT_METADATA = { role: 'Hermes profile', shortDescription: 'Hermes Agent profile.' } as const

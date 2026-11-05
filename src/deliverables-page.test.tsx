@@ -9,6 +9,8 @@ describe('deliverables page', () => {
     const markup = renderToStaticMarkup(<Deliverables/>)
     expect(markup).toContain('Task deliverable candidates')
     expect(markup).toContain('Kandidat bukan deliverable terverifikasi')
+    expect(markup).toContain('Bagong')
+    expect(markup).not.toContain('<td>coder</td>')
     expect(markup).toContain('Unavailable from current read-only sources')
     expect(markup).toContain('href="#/task-board"')
     expect(markup).not.toContain('onClick')
