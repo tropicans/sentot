@@ -60,10 +60,10 @@ const cronList = `
 
 describe('Hermes profile list', () => {
   it('reads display-name ids, long names and unset models by column', () => {
-    expect(parseProfiles(profileList)).toEqual([
-      { name: 'default', model: 'anthropic/claude-sonnet-4', gateway: 'Running' },
-      { name: 'coder', model: 'openai/gpt-5.5', gateway: 'Stopped' },
-      { name: 'scratch', model: 'Not configured', gateway: 'Stopped' },
+    expect(parseProfiles(profileList)).toMatchObject([
+      { name: 'default', model: 'anthropic/claude-sonnet-4', gateway: 'Running', role: 'Hermes Orchestrator & Learning Project Manager' },
+      { name: 'coder', model: 'openai/gpt-5.5', gateway: 'Stopped', role: 'Hermes profile' },
+      { name: 'scratch', model: 'Not configured', gateway: 'Stopped', role: 'Hermes profile' },
     ])
   })
 

@@ -1,0 +1,22 @@
+services:
+  ruang-proxy:
+    image: alpine/socat
+    container_name: ruang-proxy
+    command:
+      - TCP-LISTEN:3001,fork,reuseaddr
+      - TCP:hermes:3001
+    restart: unless-stopped
+    networks:
+      - hermes-internal
+    ports:
+      - "192.168.10.111:3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z hermes 3001"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  hermes-internal:
+    external: true

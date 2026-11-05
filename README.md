@@ -1,6 +1,71 @@
-# Ruang · Hermes 3D Virtual Office
+# Sentot · Ruang for Learning-Agent Operations
 
-*Ruang* is Indonesian for "room" or "space". It is a 3D virtual office and read-only mission control for your local [Hermes Agent](https://hermes-agent.nousresearch.com) and OpenCode crew. See who is working and what they are doing, plus the Kanban board, cron jobs, sessions, memory, folders and logs, all in one place. Everything is read through the `hermes` CLI, and nothing is ever changed.
+Sentot extends *Ruang* (Indonesian for "room" or "space") as a 3D virtual office and read-only mission control for a Hermes learning-program crew. It shows agent roles, work, Kanban tasks, secure task artifacts, cron jobs, sessions, memory, folders, and logs in one place.
+
+Production: [ruang.yudhiar.fun](https://ruang.yudhiar.fun) · Health: [`/api/health`](https://ruang.yudhiar.fun/api/health)
+
+[![CI](https://github.com/tropicans/sentot/actions/workflows/ci.yml/badge.svg)](https://github.com/tropicans/sentot/actions/workflows/ci.yml)
+
+Stable profile IDs remain separate from display names. Sentot is the Hermes Orchestrator and Learning Project Manager; specialist and support agents keep bounded responsibilities. Read-only inspection is the default, while scope, strategic deadlines, cost, cancellation, final completion, publication, and production changes require approval.
+
+## Sentot crew
+
+- **Sentot** (`default`) — Hermes Orchestrator & Learning Project Manager.
+- **Nakula** (`lna`) — Learning Needs Analyst.
+- **Yudhistira** (`id`) — Instructional Designer.
+- **Bima** (`lcd`) — Learning Content Developer.
+- **Srikandi** (`mled`) — Multimedia & Learning Experience Developer.
+- **Drona** (`aes`) — Assessment & Evaluation Specialist.
+- **Gatotkaca** (`tlts`) — TITAN Learning Technology & Platform Specialist.
+- **Petruk** (`researcher`) — Research & Evidence Support.
+- **Semar** (`semar`) — Learning Synthesis Support.
+- **Bagong** (`bagong`) — Engineering Support.
+- **Arjuna** (`arjuna`) — Media Production Support.
+- **Kresna** (`kresna`) — Evaluation & Data Review Support.
+- **Gareng** (`gareng`) — Independent Quality Reviewer.
+
+Each final deliverable has one specialist owner. Support agents assist; Gareng provides an independent quality gate.
+
+## Production operations
+
+Production uses three boundaries:
+
+```text
+Ruang process in container hermes:3001
+→ ruang-proxy on private host address 192.168.10.111:3001
+→ Cloudflare Tunnel → ruang.yudhiar.fun
+```
+
+- Start Ruang with `RUANG_HOST=0.0.0.0` only inside the private Docker network.
+- Keep `ruang-proxy` on `restart: unless-stopped`; template: `ops/docker-compose.production.yml`.
+- Run Ruang under a real supervisor, not an interactive shell or `nohup`; template: `ops/supervisord-ruang.conf`.
+- Probe private origin with `ops/ruang-healthcheck.sh`.
+- Public watchdog stays silent while healthy and alerts only on failure.
+- No public host port beyond the existing private-address binding is required.
+
+Verification after every deployment:
+
+```bash
+curl -fsS http://127.0.0.1:3001/api/health        # app namespace
+curl -fsS http://192.168.10.111:3001/api/health   # proxy/host boundary
+curl -fsS https://ruang.yudhiar.fun/api/health    # public edge
+```
+
+Do not treat HTTP health alone as feature verification. Probe expected API fields, such as agent role metadata or task artifacts, after restart.
+
+## Security model
+
+- Task artifacts are read-only and constrained to each task workspace.
+- Path traversal, symlinks, sensitive extensions/names, binary previews, and oversized previews are blocked.
+- Stable profile IDs drive routing; display names never replace technical IDs.
+- Repository and production changes require tests, build evidence, controlled restart, and public verification.
+- Secrets, tokens, cookies, private keys, and participant data must never enter source control or task previews.
+
+The remaining upstream Ruang documentation follows below.
+
+---
+
+*Ruang* is also a general read-only mission control for local [Hermes Agent](https://hermes-agent.nousresearch.com) and OpenCode crews. Everything is read through the `hermes` CLI; Ruang does not expose arbitrary shell input.
 
 ![The 3D office: an agent at work at its desk, and idle agents playing ping-pong and console games in the game room](docs/screenshots/office.png)
 
