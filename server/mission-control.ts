@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
-import { AGENT_REGISTRY_BY_ID, FALLBACK_AGENT_METADATA } from './agent-registry.js'
+import { AGENT_REGISTRY_BY_ID, FALLBACK_AGENT_METADATA, agentMetadata } from './agent-registry.js'
 
 const execFile = promisify(execFileCallback)
 const CACHE_MS = 10_000
@@ -53,6 +53,33 @@ export interface ProjectCharterSnapshot {
   sourceCompleteness: { status: string; boardDiscovery: string; taskSource: string }
   privacyScope: { scope: 'applied' | 'limited'; visibility: 'limited'; redactedTaskCount?: number }
   generatedAt: string
+}
+export const CAPACITY_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
+export interface ResourceWorkload { taskId: string; board?: string; title: string; status: string; private?: boolean }
+export interface ResourceAgent { agentId: string; displayName: string; workload: ResourceWorkload[]; capacity: string }
+export interface ResourceCapacitySnapshot {
+  agents: ResourceAgent[]
+  unassigned: ResourceWorkload[]
+  bottlenecks: (ResourceWorkload & { blocks: number })[]
+  source: { status: 'available' | 'partial' | 'unavailable'; scope: 'complete' | 'partial' | 'ambiguous'; boardDiscovery: string; includedBoardIds: string[]; failedBoards: string[]; dependencySource: { availability: Availability | 'partial' } }
+  privacy: { scope: 'applied' | 'limited'; visibility: 'limited'; redactedTaskCount?: number }
+  fetchedAt: string
+}
+export function buildResourceCapacity(board: TaskBoardSnapshot, dependencies: DependencySnapshot): ResourceCapacitySnapshot {
+  const available = board.tasks.availability === 'available'
+  const tasks = available ? board.tasks.data : []
+  const visible = tasks.filter(task => !task.private)
+  const workload = (task: Task): ResourceWorkload => ({ taskId: task.id ?? `${task.board ?? ''}:${task.title}`, ...(task.board ? { board: task.board } : {}), title: task.private ? '🔒 Private task' : task.title, status: task.status, ...(task.private ? { private: true } : {}) })
+  const active = (items: Task[]) => items.filter(task => !['done', 'completed', 'complete', 'closed', 'cancelled', 'canceled', 'archived'].includes(task.status.toLowerCase()))
+  const grouped = new Map<string, ResourceAgent>()
+  active(tasks).filter(task => task.assignee).forEach(task => { const id = task.assignee!; const item: ResourceAgent = grouped.get(id) ?? { agentId: id, displayName: agentMetadata(id)?.displayName ?? id, workload: [], capacity: CAPACITY_UNAVAILABLE }; item.workload.push(workload(task)); grouped.set(id, item) })
+  const bottlenecks = dependencies.graph.availability === 'available' ? dependencies.graph.data.nodes.filter(node => node.bottleneck > 0 && visible.some(task => task.id === node.id && task.board === node.board)).map(node => ({ taskId: node.id, ...(node.board ? { board: node.board } : {}), title: node.title, status: node.status, blocks: node.bottleneck })) : []
+  const failedBoards = board.failedBoards ?? []
+  const includedBoardIds = board.readBoardIds ?? (board.boards ?? []).filter(item => !failedBoards.includes(item.slug)).map(item => item.slug)
+  const boardDiscovery = board.boardDiscovery?.availability ?? (board.boards ? (board.boards.length ? 'available' : 'empty') : 'unavailable')
+  const scope = !available || boardDiscovery === 'unavailable' || boardDiscovery === 'empty' || failedBoards.length ? 'ambiguous' : board.readBoardIds && board.boards && board.readBoardIds.length < board.boards.length ? 'partial' : 'complete'
+  const dependencySource = dependencies.graph.availability === 'available' ? (dependencies.graph.data.partial ? 'partial' : 'available') : 'unavailable'
+  return { agents: [...grouped.values()], unassigned: active(visible).filter(task => !task.assignee).map(workload), bottlenecks, source: { status: !available ? 'unavailable' : scope === 'complete' && dependencySource === 'available' ? 'available' : 'partial', scope, boardDiscovery, includedBoardIds, failedBoards, dependencySource: { availability: dependencySource } }, privacy: tasks.some(task => task.private) ? { scope: 'applied', visibility: 'limited', redactedTaskCount: tasks.filter(task => task.private).length } : { scope: 'limited', visibility: 'limited' }, fetchedAt: board.fetchedAt }
 }
 export function buildProjectCharter(board: TaskBoardSnapshot): ProjectCharterSnapshot {
   const available = board.tasks.availability === 'available'

@@ -1,11 +1,11 @@
-export const navigation = ['Office', 'LPM Dashboard', 'Agents', 'Usage', 'Task Board', 'WBS & Timeline', 'Deliverables', 'Approval Queue', 'Risk Register', 'Dependency Graph', 'Project Charter', 'Completion Report', 'Revision Log', 'Calendar', 'Activity', 'Memory', 'Folders', 'Logs', 'Settings'] as const
+export const navigation = ['Office', 'LPM Dashboard', 'Agents', 'Usage', 'Task Board', 'WBS & Timeline', 'Resource & Capacity', 'Revision Log', 'Deliverables', 'Approval Queue', 'Risk Register', 'Dependency Graph', 'Project Charter', 'Completion Report', 'Calendar', 'Activity', 'Memory', 'Folders', 'Logs', 'Settings'] as const
 export type Page = typeof navigation[number]
 
 /** The page shown when the address names no page (or an unknown one). */
 export const HOME: Page = 'Office'
 
 export function pageSlug(page: Page): string {
-  return page === 'WBS & Timeline' ? 'wbs-timeline' : page.toLowerCase().replace(/\s+/g, '-')
+  return page.toLowerCase().replace(/\s*&\s*/g, '-').replace(/\s+/g, '-')
 }
 
 export function pageFromHash(hash: string): Page {
