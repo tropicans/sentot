@@ -8,7 +8,7 @@ import { redactActivity, redactCalendar, redactDashboard, redactDeliverables, re
 import { installProfileLock, isHidden, type Privacy } from './profile-lock.js'
 import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
-import { buildApprovalQueue, buildCompletionReport, buildDeliverables, buildProjectCharter, buildResourceCapacity, buildRevisionLog, buildRiskRegister, buildWbsTimeline, collectTaskDetail, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage, type TaskDetail } from './mission-control.js'
+import { buildApprovalQueue, buildCompletionReport, buildDeliverables, buildProjectCharter, buildProjectOverview, buildResourceCapacity, buildRevisionLog, buildRiskRegister, buildWbsTimeline, collectTaskDetail, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage, type ProjectOverviewSource, type TaskDetail } from './mission-control.js'
 import { ArtifactError, listArtifacts, readArtifact } from './artifacts.js'
 
 // Explicit override for private container networks, e.g. Cloudflare Tunnel.
@@ -48,6 +48,25 @@ const routes: Record<string, (now: number, privacy: Privacy) => Promise<unknown>
   '/api/approvals': async (now, privacy) => buildApprovalQueue(redactTasks(await getTaskBoard(now), privacy)),
   '/api/completion-report': async (now, privacy) => buildCompletionReport(redactTasks(await getTaskBoard(now), privacy), redactDependencies(await getDependencies(now), privacy)),
   '/api/project-charter': async (now, privacy) => buildProjectCharter(redactTasks(await getTaskBoard(now), privacy)),
+  '/api/project-overview': async (now, privacy) => {
+    const board = redactTasks(await getTaskBoard(now), privacy)
+    const dependencies = redactDependencies(await getDependencies(now), privacy)
+    const taskStatus: ProjectOverviewSource['status'] = board.tasks.availability === 'unavailable' ? 'unavailable' : board.boardDiscovery?.empty || !board.boardDiscovery ? 'ambiguous' : board.failedBoards?.length || board.boardDiscovery.availability !== 'available' ? 'partial' : 'available'
+    const dependencyStatus: ProjectOverviewSource['status'] = dependencies.graph.availability === 'unavailable' ? 'unavailable' : dependencies.graph.data.partial ? 'partial' : 'available'
+    const combined = taskStatus === 'unavailable' || dependencyStatus === 'unavailable' ? 'unavailable' : taskStatus === 'partial' || dependencyStatus === 'partial' ? 'partial' : 'available'
+    const sources: ProjectOverviewSource[] = [
+      { key: 'charter', label: 'Project Charter', route: '#/project-charter', status: taskStatus },
+      { key: 'wbs', label: 'WBS & Timeline', route: '#/wbs-timeline', status: combined },
+      { key: 'capacity', label: 'Resource & Capacity', route: '#/resource-capacity', status: combined },
+      { key: 'revision', label: 'Revision Log', route: '#/revision-log', status: taskStatus },
+      { key: 'deliverables', label: 'Deliverables', route: '#/deliverables', status: taskStatus },
+      { key: 'risks', label: 'Risks', route: '#/risk-register', status: combined },
+      { key: 'approvals', label: 'Approvals', route: '#/approval-queue', status: taskStatus },
+      { key: 'dependencies', label: 'Dependencies', route: '#/dependency-graph', status: dependencyStatus },
+      { key: 'completion', label: 'Completion Report', route: '#/completion-report', status: combined },
+    ]
+    return buildProjectOverview(sources, new Date().toISOString())
+  },
   '/api/wbs-timeline': async (now, privacy) => buildWbsTimeline(redactTasks(await getTaskBoard(now), privacy), redactDependencies(await getDependencies(now), privacy)),
   '/api/revision-log': async (now, privacy) => {
     const board = await getTaskBoard(now)

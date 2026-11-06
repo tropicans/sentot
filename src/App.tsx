@@ -17,6 +17,7 @@ import { RiskRegister } from './pages/RiskRegister.tsx'
 import { ApprovalQueue } from './pages/ApprovalQueue.tsx'
 import { CompletionReport } from './pages/CompletionReport.tsx'
 import { ProjectCharter } from './pages/ProjectCharter.tsx'
+import { ProjectOverview } from './pages/ProjectOverview.tsx'
 import { WbsTimeline } from './pages/WbsTimeline.tsx'
 import { RevisionLog } from './pages/RevisionLog.tsx'
 import { ResourceCapacity } from './pages/ResourceCapacity.tsx'
@@ -85,7 +86,7 @@ function Shell({ onRefresh, access, onAccessChange }: { onRefresh: () => void; a
   const syncLabel = data ? `SYNCED ${formatTime(data.fetchedAt)}${dashboard.status === 'ready' && dashboard.stale ? ' · STALE' : ''}` : dashboard.status === 'failed' ? 'API NOT AVAILABLE' : 'CONNECTING...'
 
   const alerts = (data && data.commands.failed > 0 ? 1 : 0)
-  const content = page === 'Agents' ? <Agents runtime={data?.runtime ?? null} pending={dashboard.status === 'pending'}/> : page === 'Office' ? <Office dashboard={data} dashboardPending={dashboard.status === 'pending'} onNavigate={navigate}/> : page === 'LPM Dashboard' ? <LpmDashboard dashboard={data}/> : page === 'Usage' ? <Usage/>: page === 'Task Board' ? <TaskBoard/> : page === 'WBS & Timeline' ? <WbsTimeline/> : page === 'Deliverables' ? <Deliverables/> : page === 'Approval Queue' ? <ApprovalQueue/> : page === 'Project Charter' ? <ProjectCharter/> : page === 'Resource & Capacity' ? <ResourceCapacity/> : page === 'Completion Report' ? <CompletionReport/> : page === 'Revision Log' ? <RevisionLog/> : page === 'Risk Register' ? <RiskRegister/> : page === 'Dependency Graph' ? <DependencyGraph/> : page === 'Calendar' ? <Calendar/> : page === 'Activity' ? <Activity/> : page === 'Memory' ? <Memory onOpenFolders={() => navigate('Folders')}/> : page === 'Folders' ? <Folders/> : page === 'Settings' ? <Settings access={access} onAccessChange={onAccessChange}/> : <Logs/>
+  const content = page === 'Agents' ? <Agents runtime={data?.runtime ?? null} pending={dashboard.status === 'pending'}/> : page === 'Office' ? <Office dashboard={data} dashboardPending={dashboard.status === 'pending'} onNavigate={navigate}/> : page === 'LPM Dashboard' ? <LpmDashboard dashboard={data}/> : page === 'Project Overview' ? <ProjectOverview/> : page === 'Usage' ? <Usage/>: page === 'Task Board' ? <TaskBoard/> : page === 'WBS & Timeline' ? <WbsTimeline/> : page === 'Deliverables' ? <Deliverables/> : page === 'Approval Queue' ? <ApprovalQueue/> : page === 'Project Charter' ? <ProjectCharter/> : page === 'Resource & Capacity' ? <ResourceCapacity/> : page === 'Completion Report' ? <CompletionReport/> : page === 'Revision Log' ? <RevisionLog/> : page === 'Risk Register' ? <RiskRegister/> : page === 'Dependency Graph' ? <DependencyGraph/> : page === 'Calendar' ? <Calendar/> : page === 'Activity' ? <Activity/> : page === 'Memory' ? <Memory onOpenFolders={() => navigate('Folders')}/> : page === 'Folders' ? <Folders/> : page === 'Settings' ? <Settings access={access} onAccessChange={onAccessChange}/> : <Logs/>
 
   return <div className={`app${page === 'Office' ? ' app-office' : ''}`}>
     {menuOpen && <div className="drawer-backdrop" onClick={closeMenu} aria-hidden="true"/>}

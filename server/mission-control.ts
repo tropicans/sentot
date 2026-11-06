@@ -41,6 +41,12 @@ export interface Session { title: string; preview: string; lastActive: string; i
 export interface Skill { name: string; category: string; source: string; trust: string; status: 'enabled' }
 export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard[]; failedBoards?: string[]; readBoardIds?: string[]; boardDiscovery?: { availability: Availability; empty: boolean; error?: Source<unknown>['error'] }; fetchedAt: string }
 export const DELIVERABLE_UNAVAILABLE = 'Unavailable from current read-only sources'
+export type ProjectOverviewStatus = 'available' | 'partial' | 'unavailable' | 'ambiguous'
+export interface ProjectOverviewSource { key: string; label: string; route: string; status: ProjectOverviewStatus; note?: string }
+export interface ProjectOverviewSnapshot { sources: ProjectOverviewSource[]; fetchedAt: string }
+export function buildProjectOverview(sources: ProjectOverviewSource[], fetchedAt: string): ProjectOverviewSnapshot {
+  return { sources, fetchedAt }
+}
 export interface ProjectCharterSnapshot {
   projectBoardScope: { boards: { id: string; name: string }[]; scope: 'complete' | 'partial' | 'ambiguous'; failedBoards: string[]; unreadBoards: string[] }
   objective: string; scopeIn: string; scopeOut: string; stakeholders: string[]
