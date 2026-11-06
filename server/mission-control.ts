@@ -41,6 +41,31 @@ export interface Session { title: string; preview: string; lastActive: string; i
 export interface Skill { name: string; category: string; source: string; trust: string; status: 'enabled' }
 export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard[]; failedBoards?: string[]; readBoardIds?: string[]; boardDiscovery?: { availability: Availability; empty: boolean; error?: Source<unknown>['error'] }; fetchedAt: string }
 export const DELIVERABLE_UNAVAILABLE = 'Unavailable from current read-only sources'
+export interface ProjectCharterSnapshot {
+  projectBoardScope: { boards: { id: string; name: string }[]; scope: 'complete' | 'partial' | 'ambiguous'; failedBoards: string[]; unreadBoards: string[] }
+  objective: string; scopeIn: string; scopeOut: string; stakeholders: string[]
+  milestones: { title: string; taskId?: string; board?: string }[]
+  constraints: { title: string; taskId?: string; board?: string }[]
+  risks: { title: string; taskId?: string; board?: string }[]
+  assumptions: { title: string; taskId?: string; board?: string }[]
+  approvalGates: { title: string; taskId?: string; board?: string; status: string }[]
+  listSource: { status: 'complete' | 'partial' | 'unavailable' | 'ambiguous' }
+  sourceCompleteness: { status: string; boardDiscovery: string; taskSource: string }
+  privacyScope: { scope: 'applied' | 'limited'; visibility: 'limited'; redactedTaskCount?: number }
+  generatedAt: string
+}
+export function buildProjectCharter(board: TaskBoardSnapshot): ProjectCharterSnapshot {
+  const available = board.tasks.availability === 'available'
+  const tasks = available ? board.tasks.data : []
+  const failedBoards = board.failedBoards ?? []
+  const unreadBoards = board.boards && board.readBoardIds ? board.boards.filter(item => !board.readBoardIds!.includes(item.slug)).map(item => item.slug) : []
+  const scope = !board.boards || !board.boards.length ? 'ambiguous' : failedBoards.length || unreadBoards.length || !available ? 'partial' : 'complete'
+  const visible = tasks.filter(task => !task.private)
+  const marked = (prefix: RegExp) => visible.flatMap(task => { const match = task.title.match(prefix); return match ? [{ title: match[1].trim(), ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}) }] : [] })
+  const approvals = visible.flatMap(task => { const match = task.title.match(/^approval\s+(?:pending|approved|rejected)?\s*:\s*[^—:]+\s*(?:—|:)\s*(.+)$/i); return match ? [{ title: match[1].trim(), ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), status: /approved/i.test(task.title) ? 'approved' : /rejected/i.test(task.title) ? 'rejected' : 'pending' }] : [] })
+  const listStatus = !available ? 'unavailable' : scope
+  return { projectBoardScope: { boards: (board.boards ?? []).map(item => ({ id: item.slug, name: item.name })), scope, failedBoards, unreadBoards }, objective: DELIVERABLE_UNAVAILABLE, scopeIn: DELIVERABLE_UNAVAILABLE, scopeOut: DELIVERABLE_UNAVAILABLE, stakeholders: [], milestones: marked(/^milestone\s*:\s*(.*)$/i), constraints: marked(/^constraint\s*:\s*(.*)$/i), risks: marked(/^risk\s*:\s*(.*)$/i), assumptions: marked(/^assumption\s*:\s*(.*)$/i), approvalGates: approvals, listSource: { status: listStatus }, sourceCompleteness: { status: !available ? 'unavailable' : scope === 'complete' ? 'available' : 'partial', boardDiscovery: board.boardDiscovery?.availability ?? (board.boards ? 'available' : 'unavailable'), taskSource: board.tasks.availability }, privacyScope: { scope: visible.length !== tasks.length ? 'applied' : 'limited', visibility: 'limited', ...(visible.length !== tasks.length ? { redactedTaskCount: tasks.length - visible.length } : {}) }, generatedAt: board.fetchedAt }
+}
 export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
 export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
 export const APPROVAL_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
