@@ -8,7 +8,7 @@ import { redactActivity, redactCalendar, redactDashboard, redactDeliverables, re
 import { installProfileLock, isHidden, type Privacy } from './profile-lock.js'
 import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
-import { buildApprovalQueue, buildCompletionReport, buildDeliverables, buildProjectCharter, buildRiskRegister, buildWbsTimeline, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
+import { buildApprovalQueue, buildCompletionReport, buildDeliverables, buildProjectCharter, buildRevisionLog, buildRiskRegister, buildWbsTimeline, collectTaskDetail, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage, type TaskDetail } from './mission-control.js'
 import { ArtifactError, listArtifacts, readArtifact } from './artifacts.js'
 
 // Explicit override for private container networks, e.g. Cloudflare Tunnel.
@@ -49,6 +49,18 @@ const routes: Record<string, (now: number, privacy: Privacy) => Promise<unknown>
   '/api/completion-report': async (now, privacy) => buildCompletionReport(redactTasks(await getTaskBoard(now), privacy), redactDependencies(await getDependencies(now), privacy)),
   '/api/project-charter': async (now, privacy) => buildProjectCharter(redactTasks(await getTaskBoard(now), privacy)),
   '/api/wbs-timeline': async (now, privacy) => buildWbsTimeline(redactTasks(await getTaskBoard(now), privacy), redactDependencies(await getDependencies(now), privacy)),
+  '/api/revision-log': async (now, privacy) => {
+    const board = await getTaskBoard(now)
+    const visible = redactTasks(board, privacy)
+    const details = new Map<string, TaskDetail>()
+    if (visible.tasks.availability === 'available') {
+      await Promise.all(visible.tasks.data.filter((task): task is typeof task & { id: string } => Boolean(task.id && !task.private)).map(async (task) => {
+        const detail = await collectTaskDetail(task.id, undefined, task.board)
+        if (detail.task.data) details.set(`${task.board ?? ''}:${task.id}`, detail.task.data)
+      }))
+    }
+    return buildRevisionLog(visible, details)
+  },
   '/api/calendar': async (now, privacy) => redactCalendar(await getCalendar(now), privacy),
   '/api/activity': async (now, privacy) => redactActivity(await getActivity(now), privacy),
   '/api/knowledge': getKnowledge,

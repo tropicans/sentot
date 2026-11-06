@@ -68,6 +68,34 @@ export function buildProjectCharter(board: TaskBoardSnapshot): ProjectCharterSna
 }
 export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
 export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
+export interface RevisionEntry { taskId?: string; board?: string; title: string; version: string; revision: string; authorOrOwner: string; reason: string; reviewer: string; evidence: string; timestamp: string; private?: boolean }
+export interface RevisionLogSnapshot { entries: RevisionEntry[]; source: { status: 'available' | 'partial' | 'unavailable'; scope: 'complete' | 'partial' | 'ambiguous'; includedBoardIds: string[]; failedBoards: string[]; detailSource: 'complete' | 'partial' | 'unavailable' }; privacy: { scope: 'applied' | 'limited'; visibility: 'limited'; redactedTaskCount?: number }; fetchedAt: string }
+const REVISION_LABELS: Record<string, keyof Pick<RevisionEntry, 'version' | 'revision' | 'reason' | 'reviewer' | 'evidence' | 'timestamp'>> = { version: 'version', revision: 'revision', reason: 'reason', reviewer: 'reviewer', evidence: 'evidence', timestamp: 'timestamp' }
+function explicitRevision(detail: TaskDetail | undefined): Partial<RevisionEntry> {
+  if (!detail) return {}
+  const values: Partial<RevisionEntry> = {}
+  for (const comment of detail.comments) {
+    for (const line of comment.body.split('\n')) {
+      const match = line.match(/^\s*(version|revision|reason|reviewer|evidence|timestamp)\s*:\s*(.+?)\s*$/i)
+      if (match) values[REVISION_LABELS[match[1].toLowerCase()]] = match[2]
+    }
+  }
+  return values
+}
+export function buildRevisionLog(board: TaskBoardSnapshot, details: Map<string, TaskDetail>): RevisionLogSnapshot {
+  const tasks = board.tasks.availability === 'available' ? board.tasks.data : []
+  const failedBoards = board.failedBoards ?? []
+  const includedBoardIds = board.readBoardIds ?? (board.boards ? board.boards.filter((item) => !failedBoards.includes(item.slug)).map((item) => item.slug) : [])
+  const scope = !board.boards?.length ? 'ambiguous' : failedBoards.length || (board.readBoardIds && board.readBoardIds.length < board.boards.length) ? 'partial' : 'complete'
+  const visible = tasks.filter((task) => !task.private)
+  const entries = tasks.map((task) => {
+    const explicit = explicitRevision(task.id ? details.get(`${task.board ?? ''}:${task.id}`) : undefined)
+    return { ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), title: task.private ? '🔒 Private task' : task.title, version: explicit.version ?? DELIVERABLE_UNAVAILABLE, revision: explicit.revision ?? DELIVERABLE_UNAVAILABLE, authorOrOwner: task.private ? DELIVERABLE_UNAVAILABLE : task.assignee ?? DELIVERABLE_UNAVAILABLE, reason: explicit.reason ?? DELIVERABLE_UNAVAILABLE, reviewer: explicit.reviewer ?? DELIVERABLE_UNAVAILABLE, evidence: explicit.evidence ?? DELIVERABLE_UNAVAILABLE, timestamp: explicit.timestamp ?? DELIVERABLE_UNAVAILABLE, ...(task.private ? { private: true } : {}) }
+  })
+  const detailSource = tasks.some((task) => task.id && details.has(`${task.board ?? ''}:${task.id}`)) ? (details.size >= tasks.filter((task) => task.id).length ? 'complete' : 'partial') : 'unavailable'
+  const status = board.tasks.availability !== 'available' ? 'unavailable' : scope === 'complete' && detailSource === 'complete' ? 'available' : 'partial'
+  return { entries, source: { status, scope, includedBoardIds, failedBoards, detailSource }, privacy: visible.length < tasks.length ? { scope: 'applied', visibility: 'limited', redactedTaskCount: tasks.length - visible.length } : { scope: 'limited', visibility: 'limited' }, fetchedAt: board.fetchedAt }
+}
 export const APPROVAL_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | typeof APPROVAL_UNAVAILABLE
 export interface ApprovalItem { approvalType: string; sourceTask: string; taskId?: string; board?: string; owner: string; status: ApprovalStatus; requestedDate: string; decisionMaker: string; evidence: string; risk: string; dependency: string; version: string; private?: boolean }
