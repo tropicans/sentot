@@ -114,7 +114,7 @@ describe('Kanban boards', () => {
     launch: [{ id: 't_2', title: 'On launch', status: 'running', assignee: 'coder' }],
   }
 
-  it('reads the tasks of every board with tasks, tagged with their board', async () => {
+  it('reads every discovered board, including empty non-current boards, and tags tasks', async () => {
     const calls: string[][] = []
     const snapshot = await collectTaskBoard(async (_file, args) => {
       calls.push(args)
@@ -132,14 +132,15 @@ describe('Kanban boards', () => {
     ])
     expect(JSON.stringify(snapshot)).not.toContain('/home/me')
     expect(calls.flat()).not.toContain('--evil')
-    expect(calls).not.toContainEqual(['kanban', '--board', 'empty', 'list', '--json'])
+    expect(calls).toContainEqual(['kanban', '--board', 'empty', 'list', '--json'])
+    expect(snapshot.readBoardIds).toEqual(['default', 'launch', 'empty'])
   })
 
   it('keeps the other boards when one cannot be read, and falls back without boards', async () => {
     const partial = await collectTaskBoard(async (_file, args) => {
       if (args[1] === 'boards') return boards
       if (args[2] === 'launch') throw new Error('boom')
-      return JSON.stringify(tasksOf[args[2]])
+      return JSON.stringify(tasksOf[args[2]] ?? [])
     })
     expect(partial.tasks.availability).toBe('available')
     expect(partial.tasks.data.map((task) => task.id)).toEqual(['t_1'])

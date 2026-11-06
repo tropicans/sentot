@@ -39,7 +39,7 @@ export interface KanbanBoard { slug: string; name: string; current: boolean; tot
 export interface ScheduledJob { /** Belongs to a locked agent (profile lock): the name is withheld. */ private?: boolean; name: string; schedule: string; id?: string; nextRun?: string; overdue?: boolean; status?: string; repeat?: string; lastRun?: string; lastRunOk?: boolean; agent?: string }
 export interface Session { title: string; preview: string; lastActive: string; id?: string; workspace?: string; source?: string; actor?: string; active?: boolean }
 export interface Skill { name: string; category: string; source: string; trust: string; status: 'enabled' }
-export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard[]; failedBoards?: string[]; fetchedAt: string }
+export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard[]; failedBoards?: string[]; readBoardIds?: string[]; boardDiscovery?: { availability: Availability; empty: boolean; error?: Source<unknown>['error'] }; fetchedAt: string }
 export const DELIVERABLE_UNAVAILABLE = 'Unavailable from current read-only sources'
 export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
 export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
@@ -77,6 +77,23 @@ export function buildRiskRegister(board: TaskBoardSnapshot, dependencies: Depend
 /** Read-only task-board projection. It deliberately does not query task details or files. */
 export function buildDeliverables(board: TaskBoardSnapshot): DeliverablesSnapshot {
   return { candidates: board.tasks.data.map((task) => ({ title: task.title, ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), owner: task.assignee ?? DELIVERABLE_UNAVAILABLE, taskStatus: task.status, version: DELIVERABLE_UNAVAILABLE, evidence: DELIVERABLE_UNAVAILABLE, approval: DELIVERABLE_UNAVAILABLE, finalReadiness: DELIVERABLE_UNAVAILABLE })), source: board.tasks, fetchedAt: board.fetchedAt }
+}
+export interface CompletionReportSnapshot { overallStatus: 'not ready' | 'conditionally ready' | 'ready for approval'; taskSummary: { total:number; completed:number; inProgress:number; blocked:number; unassigned:number }; finalApprovalStatus:string; readinessGaps:string[]; source:{status:string; scope:'complete'|'partial'|'ambiguous'; boardDiscovery:'available'|'empty'|'unavailable'|'unknown'; boardDiscoveryError?:string; includedBoardIds:string[]; failedBoards:string[]; failedDependencies:string[]; dependencySource:{availability:Availability|'partial'; reason?:string}}; privacy:{scope:'applied'|'limited'; visibility:'limited'; redactedTaskCount?:number}; fetchedAt:string }
+export function buildCompletionReport(board: TaskBoardSnapshot, _dependencies: DependencySnapshot): CompletionReportSnapshot {
+  const available = board.tasks.availability === 'available', tasks = available ? board.tasks.data : []
+  const approvals = buildApprovalQueue({ ...board, tasks: { ...board.tasks, data: tasks } })
+  const blocked = tasks.filter((task) => /blocked|waiting/i.test(task.status))
+  const failedBoards = board.failedBoards ?? [], failedDependencies = _dependencies.graph.availability === 'available' ? _dependencies.graph.data.failed : []
+  const discovery = board.boardDiscovery ? (board.boardDiscovery.availability === 'unavailable' ? 'unavailable' : board.boardDiscovery.empty ? 'empty' : 'available') : board.boards ? (board.boards.length ? 'available' : 'empty') : 'unknown'
+  const unreadBoards = board.boards && board.readBoardIds ? board.boards.filter((item) => !board.readBoardIds!.includes(item.slug)).map((item) => item.slug) : []
+  const scope = discovery === 'available' && available && failedBoards.length === 0 && unreadBoards.length === 0 ? 'complete' : failedBoards.length || board.readBoardIds?.length ? 'partial' : 'ambiguous'
+  const dependencySource = _dependencies.graph.availability !== 'available' ? { availability: 'unavailable' as const, reason: _dependencies.graph.error?.message ?? 'no reason supplied' } : _dependencies.graph.data.partial ? { availability: 'partial' as const, ...(_dependencies.graph.data.failed.length ? { reason: `${_dependencies.graph.data.failed.length} dependency record(s) failed` } : {}) } : { availability: 'available' as const }
+  const partial = scope !== 'complete' || dependencySource.availability !== 'available'
+  const gaps = [...(available && tasks.some((task) => !/^(done|complete)$/i.test(task.status)) ? ['Task belum selesai'] : []), ...(available && approvals.items.some((item) => item.approvalType.toLowerCase() === 'final completion' && item.status === 'approved') ? [] : [DELIVERABLE_UNAVAILABLE]), ...(failedBoards.length ? [`Source partial: failed boards ${failedBoards.join(', ')}`] : []), ...(unreadBoards.length ? [`Source partial: unread boards ${unreadBoards.join(', ')}`] : []), ...(failedDependencies.length ? [`Source partial: failed dependencies ${failedDependencies.join(', ')}`] : []), ...(discovery === 'empty' || discovery === 'unavailable' || discovery === 'unknown' ? [`Scope ambiguous: board discovery ${discovery}`] : []), ...(dependencySource.availability === 'unavailable' ? [`Dependency source unavailable: ${dependencySource.reason}`] : []), ...(partial ? ['Source incomplete: partial or unavailable data prevents full completion assessment'] : [])]
+  const sourceStatus = !available ? 'unavailable' : partial ? 'partial' : 'available'
+  const includedBoardIds = board.readBoardIds ?? (board.boards ? board.boards.filter((item) => !failedBoards.includes(item.slug)).map((item) => item.slug) : Array.from(new Set(tasks.map((task) => task.board).filter((id): id is string => Boolean(id)))))
+  const redactedTaskCount = tasks.filter((task) => task.private).length
+  return { overallStatus: 'not ready', taskSummary: { total: tasks.length, completed: tasks.filter((task) => /^(done|complete)$/i.test(task.status)).length, inProgress: tasks.filter((task) => /running|progress/i.test(task.status)).length, blocked: blocked.length, unassigned: tasks.filter((task) => !task.assignee).length }, finalApprovalStatus: approvals.items.find((item) => item.approvalType.toLowerCase() === 'final completion')?.status ?? DELIVERABLE_UNAVAILABLE, readinessGaps: gaps, source: { status: sourceStatus, scope, boardDiscovery: discovery, ...(board.boardDiscovery?.error ? { boardDiscoveryError: board.boardDiscovery.error.message } : {}), includedBoardIds, failedBoards, failedDependencies, dependencySource }, privacy: redactedTaskCount ? { scope: 'applied', visibility: 'limited', redactedTaskCount } : { scope: 'limited', visibility: 'limited' }, fetchedAt: board.fetchedAt }
 }
 /** `failedProfiles` lists profiles whose cron list could not be read while others could. */
 export interface CalendarSnapshot { jobs: Source<ScheduledJob[]>; failedProfiles?: string[]; fetchedAt: string }
@@ -253,7 +270,7 @@ export function parseTasks(output: string): Task[] {
     const priority = typeof record.priority === 'number' && Number.isFinite(record.priority) ? record.priority : undefined
     return title && status ? [{ title, status: status.toLowerCase(), ...(id && /^[A-Za-z0-9_-]+$/.test(id) ? { id } : {}), ...(assignee ? { assignee } : {}), ...(priority !== undefined ? { priority } : {}) }] : []
   })
-  if (list.length > 0 && tasks.length === 0) throw new Error('Unrecognized Kanban output.')
+  if (tasks.length !== list.length) throw new Error('Unrecognized Kanban output.')
   return tasks
 }
 
@@ -565,13 +582,18 @@ export const BOARD_SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
 export function parseBoards(output: string): KanbanBoard[] {
   const parsed = jsonPayload(output)
   if (!Array.isArray(parsed)) throw new Error('Unrecognized Kanban boards output.')
-  return parsed.flatMap((item) => {
-    if (!item || typeof item !== 'object') return []
+  let malformed = false
+  const boards = parsed.flatMap((item) => {
+    if (!item || typeof item !== 'object') { malformed = true; return [] }
     const record = item as Record<string, unknown>
     const slug = text(record.slug)
-    if (!slug || !BOARD_SLUG.test(slug) || record.archived === true) return []
+    if (record.archived === true) return []
+    if (!slug) { malformed = true; return [] }
+    if (!BOARD_SLUG.test(slug)) return []
     return [{ slug, name: text(record.name) ?? slug, current: record.is_current === true, total: typeof record.total === 'number' && Number.isFinite(record.total) ? record.total : 0 }]
   })
+  if (malformed) throw new Error('Unrecognized Kanban boards output.')
+  return boards
 }
 
 const KANBAN_CONCURRENCY = 4
@@ -584,14 +606,12 @@ const KANBAN_CONCURRENCY = 4
 export async function collectTaskBoard(run: Run = systemRun): Promise<TaskBoardSnapshot> {
   const fetchedAt = new Date().toISOString()
   const boards = await read(run, 'hermes', ['kanban', 'boards', 'list', '--json'], parseBoards, [])
-  if (boards.availability !== 'available' || boards.data.length === 0) return { tasks: await read(run, 'hermes', ['kanban', 'list', '--json'], parseTasks, []), fetchedAt }
-  // Boards list only counts non-archived tasks, which is exactly what `kanban list` returns.
-  const withTasks = boards.data.filter((board) => board.total > 0 || board.current)
-  const results = await mapLimit(withTasks, KANBAN_CONCURRENCY, (board) => read(run, 'hermes', ['kanban', '--board', board.slug, 'list', '--json'], parseTasks, []))
-  const failedBoards = withTasks.filter((_, index) => results[index].availability !== 'available').map((board) => board.slug)
-  if (withTasks.length > 0 && failedBoards.length === withTasks.length) return { tasks: results[0], boards: boards.data, fetchedAt }
-  const tasks = results.flatMap((result, index) => result.availability === 'available' ? result.data.map((task) => ({ ...task, board: withTasks[index].slug })) : [])
-  return { tasks: { availability: 'available', data: tasks }, boards: boards.data, ...(failedBoards.length ? { failedBoards } : {}), fetchedAt }
+  if (boards.availability !== 'available' || boards.data.length === 0) return { tasks: await read(run, 'hermes', ['kanban', 'list', '--json'], parseTasks, []), boardDiscovery: { availability: boards.availability, empty: boards.availability === 'available', ...(boards.error ? { error: boards.error } : {}) }, fetchedAt }
+  const results = await mapLimit(boards.data, KANBAN_CONCURRENCY, (board) => read(run, 'hermes', ['kanban', '--board', board.slug, 'list', '--json'], parseTasks, []))
+  const failedBoards = boards.data.filter((_, index) => results[index].availability !== 'available').map((board) => board.slug)
+  if (failedBoards.length === boards.data.length) return { tasks: results[0], boards: boards.data, failedBoards, readBoardIds: [], boardDiscovery: { availability: 'available', empty: false }, fetchedAt }
+  const tasks = results.flatMap((result, index) => result.availability === 'available' ? result.data.map((task) => ({ ...task, board: boards.data[index].slug })) : [])
+  return { tasks: { availability: 'available', data: tasks }, boards: boards.data, readBoardIds: boards.data.filter((_, index) => results[index].availability === 'available').map((board) => board.slug), boardDiscovery: { availability: 'available', empty: false }, ...(failedBoards.length ? { failedBoards } : {}), fetchedAt }
 }
 
 /**

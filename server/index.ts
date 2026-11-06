@@ -8,7 +8,7 @@ import { redactActivity, redactCalendar, redactDashboard, redactDeliverables, re
 import { installProfileLock, isHidden, type Privacy } from './profile-lock.js'
 import { API_VERSION } from './api-version.js'
 import { collectMemory } from './memory.js'
-import { buildApprovalQueue, buildDeliverables, buildRiskRegister, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
+import { buildApprovalQueue, buildCompletionReport, buildDeliverables, buildRiskRegister, getActivity, getCalendar, getChannels, getCommandLog, getDashboard, getDependencies, getKnowledge, getLogs, getOffice, getSnapshot, getTaskBoard, getTaskDetail, getUsage } from './mission-control.js'
 import { ArtifactError, listArtifacts, readArtifact } from './artifacts.js'
 
 // Explicit override for private container networks, e.g. Cloudflare Tunnel.
@@ -46,6 +46,7 @@ const routes: Record<string, (now: number, privacy: Privacy) => Promise<unknown>
   '/api/dependencies': async (now, privacy) => redactDependencies(await getDependencies(now), privacy),
   '/api/risks': async (now, privacy) => buildRiskRegister(redactTasks(await getTaskBoard(now), privacy), redactDependencies(await getDependencies(now), privacy)),
   '/api/approvals': async (now, privacy) => buildApprovalQueue(redactTasks(await getTaskBoard(now), privacy)),
+  '/api/completion-report': async (now, privacy) => buildCompletionReport(redactTasks(await getTaskBoard(now), privacy), redactDependencies(await getDependencies(now), privacy)),
   '/api/calendar': async (now, privacy) => redactCalendar(await getCalendar(now), privacy),
   '/api/activity': async (now, privacy) => redactActivity(await getActivity(now), privacy),
   '/api/knowledge': getKnowledge,

@@ -1,4 +1,4 @@
-export const navigation = ['Office', 'LPM Dashboard', 'Agents', 'Usage', 'Task Board', 'Deliverables', 'Approval Queue', 'Risk Register', 'Dependency Graph', 'Calendar', 'Activity', 'Memory', 'Folders', 'Logs', 'Settings'] as const
+export const navigation = ['Office', 'LPM Dashboard', 'Agents', 'Usage', 'Task Board', 'Deliverables', 'Approval Queue', 'Risk Register', 'Dependency Graph', 'Completion Report', 'Calendar', 'Activity', 'Memory', 'Folders', 'Logs', 'Settings'] as const
 export type Page = typeof navigation[number]
 
 /** The page shown when the address names no page (or an unknown one). */
