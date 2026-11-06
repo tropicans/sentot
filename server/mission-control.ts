@@ -83,6 +83,38 @@ export function buildApprovalQueue(board: TaskBoardSnapshot): ApprovalQueueSnaps
   return { items, source: board.tasks, ...(board.failedBoards ? { failedBoards: board.failedBoards } : {}), fetchedAt: board.fetchedAt }
 }
 export const RISK_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
+export interface WbsTimelineItem { key: string; taskId?: string; board?: string; title: string; status: string; assignee?: string; priority?: number; milestone?: string; deadline?: string; parents?: string[]; children?: string[] }
+export interface WbsTimelineSnapshot {
+  items: WbsTimelineItem[]
+  boardScope: { boards: { id: string; name: string }[]; scope: 'complete' | 'partial' | 'ambiguous'; failedBoards: string[]; unreadBoards: string[] }
+  sourceCompleteness: { status: 'available' | 'partial' | 'unavailable'; taskSource: Availability; dependencySource: 'available' | 'partial' | 'unavailable' }
+  privacyScope: { scope: 'applied' | 'limited'; visibility: 'limited'; redactedTaskCount?: number }
+  fetchedAt: string
+}
+export function buildWbsTimeline(board: TaskBoardSnapshot, dependencies: DependencySnapshot): WbsTimelineSnapshot {
+  const tasksAvailable = board.tasks.availability === 'available'
+  const tasks = tasksAvailable ? board.tasks.data : []
+  const visible = tasks.filter((task) => !task.private)
+  const failedBoards = board.failedBoards ?? []
+  const unreadBoards = board.boards && board.readBoardIds ? board.boards.filter((item) => !board.readBoardIds!.includes(item.slug)).map((item) => item.slug) : []
+  const scope = !board.boards?.length ? 'ambiguous' : failedBoards.length || unreadBoards.length || !tasksAvailable ? 'partial' : 'complete'
+  const dependencySource = dependencies.graph.availability !== 'available' ? 'unavailable' : dependencies.graph.data.partial ? 'partial' : 'available'
+  const sourceStatus = !tasksAvailable ? 'unavailable' : scope !== 'complete' || dependencySource !== 'available' ? 'partial' : 'available'
+  const visibleKeys = new Set(visible.map((task) => `${task.board ?? ''}:${task.id ?? ''}`))
+  const parents = new Map<string, string[]>(), children = new Map<string, string[]>()
+  if (dependencies.graph.availability === 'available') for (const edge of dependencies.graph.data.edges) {
+    if (!visibleKeys.has(edge.from) || !visibleKeys.has(edge.to)) continue
+    parents.set(edge.to, [...(parents.get(edge.to) ?? []), edge.from])
+    children.set(edge.from, [...(children.get(edge.from) ?? []), edge.to])
+  }
+  const items = visible.map((task) => {
+    const key = `${task.board ?? ''}:${task.id ?? ''}`
+    const milestone = task.title.match(/^milestone\s*:\s*(.+)$/i)?.[1].trim()
+    const deadline = task.title.match(/^deadline\s*:\s*(.+)$/i)?.[1].trim()
+    return { key, ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), title: task.title, status: task.status, ...(task.assignee ? { assignee: task.assignee } : {}), ...(task.priority !== undefined ? { priority: task.priority } : {}), ...(milestone ? { milestone } : {}), ...(deadline ? { deadline } : {}), ...(parents.get(key)?.length ? { parents: parents.get(key) } : {}), ...(children.get(key)?.length ? { children: children.get(key) } : {}) }
+  })
+  return { items, boardScope: { boards: (board.boards ?? []).map((item) => ({ id: item.slug, name: item.name })), scope, failedBoards, unreadBoards }, sourceCompleteness: { status: sourceStatus, taskSource: board.tasks.availability, dependencySource }, privacyScope: visible.length !== tasks.length ? { scope: 'applied', visibility: 'limited', redactedTaskCount: tasks.length - visible.length } : { scope: 'limited', visibility: 'limited' }, fetchedAt: board.fetchedAt }
+}
 export interface RiskEntry { kind: 'Risk' | 'Assumption'; title: string; taskId?: string; board?: string; impact: string; dependencies: string[]; mitigationOwner: string; mitigationStatus: string; reviewDate: string; evidence: string; approval: string; private?: boolean }
 export type RiskDependencySource = { availability: 'available' } | { availability: 'unavailable'; error?: Source<unknown>['error'] } | { availability: 'partial'; failed: string[] }
 export interface RiskRegisterSnapshot { entries: RiskEntry[]; source: Source<Task[]>; dependencySource: RiskDependencySource; fetchedAt: string }
