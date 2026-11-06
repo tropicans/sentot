@@ -43,6 +43,20 @@ export interface TaskBoardSnapshot { tasks: Source<Task[]>; boards?: KanbanBoard
 export const DELIVERABLE_UNAVAILABLE = 'Unavailable from current read-only sources'
 export interface DeliverableCandidate { title: string; taskId?: string; board?: string; owner: string; taskStatus: string; version: string; evidence: string; approval: string; finalReadiness: string; private?: boolean }
 export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; source: Source<Task[]>; fetchedAt: string }
+export const APPROVAL_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | typeof APPROVAL_UNAVAILABLE
+export interface ApprovalItem { approvalType: string; sourceTask: string; taskId?: string; board?: string; owner: string; status: ApprovalStatus; requestedDate: string; decisionMaker: string; evidence: string; risk: string; dependency: string; version: string; private?: boolean }
+export interface ApprovalQueueSnapshot { items: ApprovalItem[]; source: Source<Task[]>; failedBoards?: string[]; fetchedAt: string }
+const APPROVAL_TYPES = new Set(['scope', 'strategic deadline', 'cost', 'cancellation', 'tna validation', 'curriculum', 'final objectives', 'content/media', 'assessment instrument/answer key', 'pass standards', 'participant-data access', 'titan change', 'prod deployment', 'final completion'])
+export function buildApprovalQueue(board: TaskBoardSnapshot): ApprovalQueueSnapshot {
+  if (board.tasks.availability !== 'available') return { items: [], source: board.tasks, ...(board.failedBoards ? { failedBoards: board.failedBoards } : {}), fetchedAt: board.fetchedAt }
+  const items = board.tasks.data.flatMap((task) => {
+    const match = task.title.match(/^approval(?:\s+(pending|approved|rejected))?\s*:\s*([^—:]+?)\s*(?:—|:)\s*(.+)$/i)
+    if (!match || !APPROVAL_TYPES.has(match[2].trim().toLowerCase())) return []
+    return [{ approvalType: match[2].trim(), sourceTask: match[3].trim(), ...(task.id ? { taskId: task.id } : {}), ...(task.board ? { board: task.board } : {}), owner: task.assignee ?? APPROVAL_UNAVAILABLE, status: (match[1]?.toLowerCase() as ApprovalStatus | undefined) ?? APPROVAL_UNAVAILABLE, requestedDate: APPROVAL_UNAVAILABLE, decisionMaker: APPROVAL_UNAVAILABLE, evidence: APPROVAL_UNAVAILABLE, risk: APPROVAL_UNAVAILABLE, dependency: APPROVAL_UNAVAILABLE, version: APPROVAL_UNAVAILABLE }]
+  })
+  return { items, source: board.tasks, ...(board.failedBoards ? { failedBoards: board.failedBoards } : {}), fetchedAt: board.fetchedAt }
+}
 export const RISK_UNAVAILABLE = DELIVERABLE_UNAVAILABLE
 export interface RiskEntry { kind: 'Risk' | 'Assumption'; title: string; taskId?: string; board?: string; impact: string; dependencies: string[]; mitigationOwner: string; mitigationStatus: string; reviewDate: string; evidence: string; approval: string; private?: boolean }
 export type RiskDependencySource = { availability: 'available' } | { availability: 'unavailable'; error?: Source<unknown>['error'] } | { availability: 'partial'; failed: string[] }

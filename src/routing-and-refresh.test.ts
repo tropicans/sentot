@@ -8,6 +8,7 @@ describe('hash routing', () => {
     for (const page of navigation) expect(pageFromHash(`#/${pageSlug(page)}`)).toBe(page)
     expect(pageFromHash('#/task-board')).toBe('Task Board')
     expect(pageFromHash('#/deliverables')).toBe('Deliverables')
+    expect(pageFromHash('#/approval-queue')).toBe('Approval Queue')
     expect(pageFromHash('#dashboard')).toBe('LPM Dashboard')
     expect(pageFromHash('#/lpm-dashboard')).toBe('LPM Dashboard')
     expect(pageFromHash('')).toBe('Office')

@@ -1,0 +1,9 @@
+import { usePolling } from '../polling.ts'
+import { agentLabel } from '../format.ts'
+import type { ApprovalQueueSnapshot } from '../types.ts'
+import { PageTitle, SourceStatus, Unavailable } from '../ui.tsx'
+export function ApprovalQueue() {
+  const request = usePolling<ApprovalQueueSnapshot>('/api/approvals', 10000)
+  const snapshot = request.status === 'ready' ? request.data : undefined
+  return <><PageTitle eyebrow="READ-ONLY GOVERNANCE" title="Approval queue">Hanya approval requirement yang bersumber eksplisit. Tidak ada aksi approve atau reject.</PageTitle><SourceStatus source={snapshot?.source} fetchedAt={snapshot?.fetchedAt} request={request}/><Unavailable source={snapshot?.source} request={request}/>{snapshot?.failedBoards?.length ? <p className="file-notice" role="status">Data sumber parsial. Board tidak tersedia: {snapshot.failedBoards.join(', ')}.</p> : null}{snapshot?.source.availability === 'available' && (snapshot.items.length === 0 ? <p className="muted">Tidak ada approval requirement eksplisit.</p> : <div className="table-scroll"><table className="log-table" aria-label="Approval queue"><thead><tr><th>Approval type / source task</th><th>Owner</th><th>Status</th><th>Requested</th><th>Decision maker</th><th>Evidence</th><th>Risk</th><th>Dependency</th><th>Version</th></tr></thead><tbody>{snapshot.items.map((item, index) => <tr key={`${item.board ?? ''}:${item.taskId ?? index}`}><td><strong>{item.approvalType}</strong><small>{item.sourceTask}</small></td><td>{item.owner === 'Unavailable from current read-only sources' ? item.owner : agentLabel(item.owner)}</td><td>{item.status}</td><td>{item.requestedDate}</td><td>{item.decisionMaker}</td><td>{item.evidence}</td><td>{item.risk}</td><td>{item.dependency}</td><td>{item.version}</td></tr>)}</tbody></table></div>)}</>
+}

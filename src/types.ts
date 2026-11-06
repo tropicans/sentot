@@ -19,6 +19,8 @@ export interface DeliverablesSnapshot { candidates: DeliverableCandidate[]; sour
 export interface RiskEntry { kind: 'Risk' | 'Assumption'; title: string; taskId?: string; board?: string; impact: string; dependencies: string[]; mitigationOwner: string; mitigationStatus: string; reviewDate: string; evidence: string; approval: string; private?: boolean }
 export type RiskDependencySource = { availability: 'available' } | { availability: 'unavailable'; error?: { code: string; message: string } } | { availability: 'partial'; failed: string[] }
 export interface RiskRegisterSnapshot { entries: RiskEntry[]; source: Source<Task[]>; dependencySource: RiskDependencySource; fetchedAt: string }
+export interface ApprovalItem { approvalType: string; sourceTask: string; taskId?: string; board?: string; owner: string; status: 'pending' | 'approved' | 'rejected' | 'Unavailable from current read-only sources'; requestedDate: string; decisionMaker: string; evidence: string; risk: string; dependency: string; version: string }
+export interface ApprovalQueueSnapshot { items: ApprovalItem[]; source: Source<Task[]>; failedBoards?: string[]; fetchedAt: string }
 /** `failedProfiles` lists profiles whose cron list could not be read while others could. */
 export interface CalendarSnapshot { jobs: Source<ScheduledJob[]>; failedProfiles?: string[]; fetchedAt: string }
 export interface ActivitySnapshot { sessions: Source<Session[]>; fetchedAt: string }
